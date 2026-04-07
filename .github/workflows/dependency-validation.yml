@@ -52,13 +52,7 @@ jobs:
           repository: ranuka-laksika/engineering-governance
           path: engineering-governance 
           ref: main
-
-      - name: 🔧 Setup Go
-        if: steps.detect-changes.outputs.has_changes == 'true'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
+          
       - name: 📊 Extract and validate dependencies
         if: steps.detect-changes.outputs.has_changes == 'true'
         id: validate
