@@ -62,6 +62,7 @@ jobs:
       - name: 📊 Extract and validate dependencies
         if: steps.detect-changes.outputs.has_changes == 'true'
         id: validate
+        continue-on-error: true
         run: |
           chmod +x .github/scripts/validate-go-dependencies.sh
           .github/scripts/validate-go-dependencies.sh \
@@ -77,20 +78,61 @@ jobs:
             const fs = require('fs');
 
             let comment = '## ❌ Dependency Validation Failed\n\n';
-            comment += 'The following dependencies are **not approved** or do not meet version requirements:\n\n';
+            comment += 'This PR contains dependencies that are **not approved** or do not meet version requirements.\n\n';
 
-            if (fs.existsSync('/tmp/unapproved_deps.txt')) {
-              const unapproved = fs.readFileSync('/tmp/unapproved_deps.txt', 'utf8');
-              comment += '### Unapproved Dependencies\n\n';
-              comment += '```\n' + unapproved + '\n```\n\n';
+            // Show all new dependencies
+            if (fs.existsSync('/tmp/new_deps.txt')) {
+              const newDeps = fs.readFileSync('/tmp/new_deps.txt', 'utf8').trim();
+              if (newDeps) {
+                comment += '### 📦 New Dependencies Added\n\n';
+                const lines = newDeps.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    comment += '- ' + line.trim() + '\n';
+                  }
+                }
+                comment += '\n';
+              }
             }
 
-            comment += '### Next Steps\n\n';
-            comment += '1. Review the unapproved dependencies listed above\n';
-            comment += '2. Check if they are available in the [approved dependency list](https://github.com/wso2/engineering-governance/blob/main/dependency-registry/go.yaml)\n';
-            comment += '3. If needed, submit a PR to add these dependencies to the approved list\n';
-            comment += '4. Once approved, update this PR and re-run the validation\n\n';
-            comment += '**This PR is blocked until all dependencies are approved.**\n';
+            // Show all updated dependencies
+            if (fs.existsSync('/tmp/updated_deps.txt')) {
+              const updatedDeps = fs.readFileSync('/tmp/updated_deps.txt', 'utf8').trim();
+              if (updatedDeps) {
+                comment += '### 🔄 Updated Dependencies\n\n';
+                const lines = updatedDeps.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    comment += '- ' + line.trim() + '\n';
+                  }
+                }
+                comment += '\n';
+              }
+            }
+
+            // Show unapproved dependencies with reasons
+            if (fs.existsSync('/tmp/unapproved_deps.txt')) {
+              const unapproved = fs.readFileSync('/tmp/unapproved_deps.txt', 'utf8').trim();
+              if (unapproved) {
+                comment += '### ⚠️ Validation Failures\n\n';
+                const lines = unapproved.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    comment += '❌ ' + line.trim() + '\n\n';
+                  }
+                }
+              }
+            }
+
+            comment += '---\n\n';
+            comment += '### 📋 Next Steps\n\n';
+            comment += '1. **Review** the validation failures listed above\n';
+            comment += '2. **Check** if dependencies are in the [approved dependency list](https://github.com/ranuka-laksika/engineering-governance/blob/main/dependency-registry/go.yaml)\n';
+            comment += '3. **Options to resolve:**\n';
+            comment += '   - Remove the unapproved dependencies from this PR\n';
+            comment += '   - OR submit a PR to add these dependencies to the approved list in engineering-governance\n';
+            comment += '4. Once resolved, push changes to re-run validation\n\n';
+            comment += '> ⚠️ **This PR is blocked until all dependencies are approved.**\n';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -109,15 +151,52 @@ jobs:
             let comment = '## ✅ Dependency Validation Passed\n\n';
             comment += 'All dependencies have been validated against the approved list.\n\n';
 
-            if (fs.existsSync('/tmp/validated_deps.txt')) {
-              const validated = fs.readFileSync('/tmp/validated_deps.txt', 'utf8');
-              if (validated.trim()) {
-                comment += '### Validated Dependencies\n\n';
-                comment += '```\n' + validated + '\n```\n\n';
+            // Show all new dependencies
+            if (fs.existsSync('/tmp/new_deps.txt')) {
+              const newDeps = fs.readFileSync('/tmp/new_deps.txt', 'utf8').trim();
+              if (newDeps) {
+                comment += '### 📦 New Dependencies Added\n\n';
+                const lines = newDeps.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    comment += '- ' + line.trim() + '\n';
+                  }
+                }
+                comment += '\n';
               }
             }
 
-            comment += '✨ **All dependencies are approved!**\n';
+            // Show all updated dependencies
+            if (fs.existsSync('/tmp/updated_deps.txt')) {
+              const updatedDeps = fs.readFileSync('/tmp/updated_deps.txt', 'utf8').trim();
+              if (updatedDeps) {
+                comment += '### 🔄 Updated Dependencies\n\n';
+                const lines = updatedDeps.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    comment += '- ' + line.trim() + '\n';
+                  }
+                }
+                comment += '\n';
+              }
+            }
+
+            // Show validated dependencies with approval details
+            if (fs.existsSync('/tmp/validated_deps.txt')) {
+              const validated = fs.readFileSync('/tmp/validated_deps.txt', 'utf8').trim();
+              if (validated) {
+                comment += '### ✅ Validation Details\n\n';
+                const lines = validated.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    comment += '✓ ' + line.trim() + '\n\n';
+                  }
+                }
+              }
+            }
+
+            comment += '---\n\n';
+            comment += '✨ **All dependencies are approved!** This PR can proceed.\n';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -130,3 +209,9 @@ jobs:
         if: steps.detect-changes.outputs.has_changes == 'false'
         run: |
           echo "No dependency changes detected - validation passed"
+
+      - name: ❌ Fail job if validation failed
+        if: steps.validate.outcome == 'failure'
+        run: |
+          echo "Dependency validation failed. Please review the comments on this PR."
+          exit 1
