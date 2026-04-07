@@ -1,4 +1,4 @@
-name: 🔍 Dependency Validation
+name: Dependency Validation
 
 on:
   pull_request:
@@ -17,12 +17,12 @@ jobs:
     name: Validate Go Dependencies
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout Thunder repository
+      - name: Checkout Thunder repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🔍 Detect modified go.mod files
+      - name: Detect modified go.mod files
         id: detect-changes
         run: |
           # Get the base branch SHA
@@ -45,7 +45,7 @@ jobs:
             echo "$CHANGED_FILES" > /tmp/changed_go_mods.txt
           fi
 
-      - name: 📥 Checkout engineering-governance repository
+      - name: Checkout engineering-governance repository
         if: steps.detect-changes.outputs.has_changes == 'true'
         uses: actions/checkout@v4
         with:
@@ -53,7 +53,7 @@ jobs:
           path: engineering-governance 
           ref: main
           
-      - name: 📊 Extract and validate dependencies
+      - name: Extract and validate dependencies
         if: steps.detect-changes.outputs.has_changes == 'true'
         id: validate
         continue-on-error: true
@@ -64,21 +64,21 @@ jobs:
             "${{ github.event.pull_request.head.sha }}" \
             "engineering-governance/dependency-registry/go.yaml"
 
-      - name: 💬 Comment on PR - Validation Failed
+      - name: Comment on PR - Validation Failed
         if: steps.validate.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
 
-            let comment = '## ❌ Dependency Validation Failed\n\n';
+            let comment = '## Dependency Validation Failed\n\n';
             comment += 'This PR contains dependencies that are **not approved** or do not meet version requirements.\n\n';
 
             // Show all new dependencies
             if (fs.existsSync('/tmp/new_deps.txt')) {
               const newDeps = fs.readFileSync('/tmp/new_deps.txt', 'utf8').trim();
               if (newDeps) {
-                comment += '### 📦 New Dependencies Added\n\n';
+                comment += '### New Dependencies Added\n\n';
                 const lines = newDeps.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
@@ -93,7 +93,7 @@ jobs:
             if (fs.existsSync('/tmp/updated_deps.txt')) {
               const updatedDeps = fs.readFileSync('/tmp/updated_deps.txt', 'utf8').trim();
               if (updatedDeps) {
-                comment += '### 🔄 Updated Dependencies\n\n';
+                comment += '### Updated Dependencies\n\n';
                 const lines = updatedDeps.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
@@ -108,7 +108,7 @@ jobs:
             if (fs.existsSync('/tmp/unapproved_deps.txt')) {
               const unapproved = fs.readFileSync('/tmp/unapproved_deps.txt', 'utf8').trim();
               if (unapproved) {
-                comment += '### ⚠️ Validation Failures\n\n';
+                comment += '### Validation Failures\n\n';
                 const lines = unapproved.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
@@ -119,14 +119,14 @@ jobs:
             }
 
             comment += '---\n\n';
-            comment += '### 📋 Next Steps\n\n';
+            comment += '### Next Steps\n\n';
             comment += '1. **Review** the validation failures listed above\n';
             comment += '2. **Check** if dependencies are in the [approved dependency list](https://github.com/ranuka-laksika/engineering-governance/blob/main/dependency-registry/go.yaml)\n';
             comment += '3. **Options to resolve:**\n';
             comment += '   - Remove the unapproved dependencies from this PR\n';
             comment += '   - OR submit a PR to add these dependencies to the approved list in engineering-governance\n';
             comment += '4. Once resolved, push changes to re-run validation\n\n';
-            comment += '> ⚠️ **This PR is blocked until all dependencies are approved.**\n';
+            comment += '> **This PR is blocked until all dependencies are approved.**\n';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -135,21 +135,21 @@ jobs:
               body: comment
             });
 
-      - name: 💬 Comment on PR - Validation Passed
+      - name: Comment on PR - Validation Passed
         if: steps.validate.outcome == 'success' && steps.detect-changes.outputs.has_changes == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
 
-            let comment = '## ✅ Dependency Validation Passed\n\n';
+            let comment = '## Dependency Validation Passed\n\n';
             comment += 'All dependencies have been validated against the approved list.\n\n';
 
             // Show all new dependencies
             if (fs.existsSync('/tmp/new_deps.txt')) {
               const newDeps = fs.readFileSync('/tmp/new_deps.txt', 'utf8').trim();
               if (newDeps) {
-                comment += '### 📦 New Dependencies Added\n\n';
+                comment += '### New Dependencies Added\n\n';
                 const lines = newDeps.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
@@ -164,7 +164,7 @@ jobs:
             if (fs.existsSync('/tmp/updated_deps.txt')) {
               const updatedDeps = fs.readFileSync('/tmp/updated_deps.txt', 'utf8').trim();
               if (updatedDeps) {
-                comment += '### 🔄 Updated Dependencies\n\n';
+                comment += '### Updated Dependencies\n\n';
                 const lines = updatedDeps.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
@@ -179,7 +179,7 @@ jobs:
             if (fs.existsSync('/tmp/validated_deps.txt')) {
               const validated = fs.readFileSync('/tmp/validated_deps.txt', 'utf8').trim();
               if (validated) {
-                comment += '### ✅ Validation Details\n\n';
+                comment += '### Validation Details\n\n';
                 const lines = validated.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
@@ -199,12 +199,12 @@ jobs:
               body: comment
             });
 
-      - name: ✅ Mark validation as passed
+      - name: Mark validation as passed
         if: steps.detect-changes.outputs.has_changes == 'false'
         run: |
           echo "No dependency changes detected - validation passed"
 
-      - name: ❌ Fail job if validation failed
+      - name: Fail job if validation failed
         if: steps.validate.outcome == 'failure'
         run: |
           echo "Dependency validation failed. Please review the comments on this PR."
