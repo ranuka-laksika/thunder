@@ -49,16 +49,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ranuka-laksika/engineering-governance
-          path: engineering-governance 
+          path: engineering-governance
           ref: main
-          
+
       - name: Extract and validate dependencies
         if: steps.detect-changes.outputs.has_changes == 'true'
         id: validate
         continue-on-error: true
         run: |
-          chmod +x .github/scripts/validate-go-dependencies.sh
-          .github/scripts/validate-go-dependencies.sh \
+          chmod +x scripts/validate-go-dependencies.sh
+          scripts/validate-go-dependencies.sh \
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}" \
             "engineering-governance/dependency-registry/go.yaml"
@@ -77,7 +77,7 @@ jobs:
             if (fs.existsSync('/tmp/new_deps.txt')) {
               const newDeps = fs.readFileSync('/tmp/new_deps.txt', 'utf8').trim();
               if (newDeps) {
-                comment += '### New Dependencies Added\n\n';
+                comment += '### 📦 New Dependencies Added\n\n';
                 const lines = newDeps.split('\n');
                 for (const line of lines) {
                   if (line.trim()) {
