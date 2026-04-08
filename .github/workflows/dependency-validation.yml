@@ -10,7 +10,6 @@ on:
 permissions:
   pull-requests: write
   contents: read
-  statuses: write
 
 jobs:
   validate-go-dependencies:
