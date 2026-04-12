@@ -99,7 +99,7 @@ jobs:
             if (hasUnapproved) {
               comment += '---\n\n';
               comment += '**PR blocked**\n\n';
-              comment += '<!> Please verify the scope of the dependencies usage is necessary\n';
+              comment += '⚠️ Please verify the scope of the dependencies usage is necessary\n';
             }
 
             github.rest.issues.createComment({
@@ -136,7 +136,7 @@ jobs:
               }
             }
 
-            comment += '<!> Please verify the scope of the dependencies usage is necessary\n';
+            comment += '⚠️ Please verify the scope of the dependencies usage is necessary\n';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
