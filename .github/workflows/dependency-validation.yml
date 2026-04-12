@@ -85,11 +85,13 @@ jobs:
 
                     if (status === 'UNAPPROVED') {
                       hasUnapproved = true;
-                      comment += `**${module}** - ❌ ${reason}\n`;
-                      comment += `\`${version}\`\n\n`;
+                      comment += `**Dependency name:** ${module}\n`;
+                      comment += `**Required version:** ${version}\n`;
+                      comment += `**Approved:** ❌ No - ${reason}\n\n`;
                     } else if (status === 'APPROVED') {
-                      comment += `**${module}** - ✅ ${reason}\n`;
-                      comment += `\`${version}\`\n\n`;
+                      comment += `**Dependency name:** ${module}\n`;
+                      comment += `**Required version:** ${version}\n`;
+                      comment += `**Approved:** ✅ Yes\n\n`;
                     }
                   }
                 }
@@ -135,8 +137,9 @@ jobs:
                     const [status, module, version, reason] = line.split('|');
 
                     if (status === 'APPROVED') {
-                      comment += `**${module}** - ✅ ${reason}\n`;
-                      comment += `\`${version}\`\n\n`;
+                      comment += `**Dependency name:** ${module}\n`;
+                      comment += `**Required version:** ${version}\n`;
+                      comment += `**Approved:** ✅ Yes\n\n`;
                     }
                   }
                 }
