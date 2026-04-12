@@ -86,11 +86,11 @@ jobs:
                     if (status === 'UNAPPROVED') {
                       hasUnapproved = true;
                       comment += `**Dependency name:** ${module}\n`;
-                      comment += `**Required version:** ${version}\n`;
+                      comment += `**Version:** ${version}\n`;
                       comment += `**Approved:** ❌ No - ${reason}\n\n`;
                     } else if (status === 'APPROVED') {
                       comment += `**Dependency name:** ${module}\n`;
-                      comment += `**Required version:** ${version}\n`;
+                      comment += `**Version:** ${version}\n`;
                       comment += `**Approved:** ✅ Yes\n\n`;
                     }
                   }
@@ -138,7 +138,7 @@ jobs:
 
                     if (status === 'APPROVED') {
                       comment += `**Dependency name:** ${module}\n`;
-                      comment += `**Required version:** ${version}\n`;
+                      comment += `**Version:** ${version}\n`;
                       comment += `**Approved:** ✅ Yes\n\n`;
                     }
                   }
