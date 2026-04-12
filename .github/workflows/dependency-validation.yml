@@ -98,7 +98,14 @@ jobs:
 
             if (hasUnapproved) {
               comment += '---\n\n';
-              comment += '**PR blocked**\n\n';
+              comment += '### Next Steps\n\n';
+              comment += '1. **Review** the validation failures listed above\n';
+              comment += '2. **Check** if dependencies are in the [approved dependency list](https://github.com/ranuka-laksika/engineering-governance/blob/main/dependency-registry/go.yaml)\n';
+              comment += '3. **Options to resolve:**\n';
+              comment += '   - Remove the unapproved dependencies from this PR\n';
+              comment += '   - OR submit a PR to add these dependencies to the approved list in engineering-governance\n';
+              comment += '4. Once resolved, push changes to re-run validation\n\n';
+              comment += '> **This PR is blocked until all dependencies are approved.**\n\n';
               comment += '⚠️ Please verify the scope of the dependencies usage is necessary\n';
             }
 
