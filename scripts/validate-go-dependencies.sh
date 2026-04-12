@@ -113,6 +113,7 @@ echo ""
 > /tmp/updated_deps.txt
 > /tmp/unapproved_deps.txt
 > /tmp/validated_deps.txt
+> /tmp/all_deps_status.txt
 
 # Process each changed go.mod file
 for GO_MOD in $CHANGED_GO_MODS; do
@@ -144,21 +145,48 @@ for GO_MOD in $CHANGED_GO_MODS; do
         if [ -z "$APPROVED_VERSIONS" ]; then
             echo "  ❌ NOT APPROVED: Module not in approved list" | tee -a /tmp/unapproved_deps.txt
             echo "$MODULE $VERSION - Module not in approved list" >> /tmp/unapproved_deps.txt
+            echo "UNAPPROVED|$MODULE|$VERSION|Not approved in the dependency registry" >> /tmp/all_deps_status.txt
         else
-            # Check if version matches any constraint
+            # Check if version matches any constraint and scope is valid
             MATCH_FOUND=false
-            while IFS= read -r CONSTRAINT; do
+            SCOPE_VALID=false
+            MATCHED_CONSTRAINT=""
+
+            # Get all version entries for this module
+            VERSION_COUNT=$(yq eval ".dependencies[] | select(.module == \"$MODULE\") | .versions | length" "$APPROVED_LIST" 2>/dev/null || echo "0")
+
+            for ((i=0; i<VERSION_COUNT; i++)); do
+                CONSTRAINT=$(yq eval ".dependencies[] | select(.module == \"$MODULE\") | .versions[$i].version" "$APPROVED_LIST" 2>/dev/null)
+
                 if check_version_constraint "$MODULE" "$VERSION" "$CONSTRAINT"; then
-                    MATCH_FOUND=true
-                    echo "  ✅ APPROVED: Matches constraint $CONSTRAINT"
-                    echo "$MODULE $VERSION - Approved (constraint: $CONSTRAINT)" >> /tmp/validated_deps.txt
-                    break
+                    # Version matches, now check scope
+                    ALLOWED_SCOPES=$(yq eval ".dependencies[] | select(.module == \"$MODULE\") | .versions[$i].allowed_scopes[]" "$APPROVED_LIST" 2>/dev/null || echo "")
+
+                    # Check if scope contains "*" or "iam"
+                    if echo "$ALLOWED_SCOPES" | grep -qE '^\*$|^iam$'; then
+                        MATCH_FOUND=true
+                        SCOPE_VALID=true
+                        MATCHED_CONSTRAINT="$CONSTRAINT"
+                        echo "  ✅ APPROVED: Matches constraint $CONSTRAINT with valid scope"
+                        echo "$MODULE $VERSION - Approved (constraint: $CONSTRAINT)" >> /tmp/validated_deps.txt
+                        echo "APPROVED|$MODULE|$VERSION|Approved" >> /tmp/all_deps_status.txt
+                        break
+                    else
+                        # Version matches but scope is not allowed
+                        MATCH_FOUND=true
+                        SCOPE_VALID=false
+                        echo "  ❌ SCOPE MISMATCH: Version matches but scope restriction does not allow iam usage"
+                        echo "$MODULE $VERSION - Scope mismatch (allowed scopes: $ALLOWED_SCOPES)" >> /tmp/unapproved_deps.txt
+                        echo "UNAPPROVED|$MODULE|$VERSION|Not approved in the dependency registry (scope mismatch)" >> /tmp/all_deps_status.txt
+                        break
+                    fi
                 fi
-            done <<< "$APPROVED_VERSIONS"
+            done
 
             if [ "$MATCH_FOUND" = false ]; then
                 echo "  ❌ NOT APPROVED: Version $VERSION does not match any approved constraint"
                 echo "$MODULE $VERSION - Version does not match approved constraints: $APPROVED_VERSIONS" >> /tmp/unapproved_deps.txt
+                echo "UNAPPROVED|$MODULE|$VERSION|Version does not match approved constraints" >> /tmp/all_deps_status.txt
             fi
         fi
     done
@@ -177,21 +205,48 @@ for GO_MOD in $CHANGED_GO_MODS; do
             if [ -z "$APPROVED_VERSIONS" ]; then
                 echo "  ❌ NOT APPROVED: Module not in approved list"
                 echo "$MODULE $NEW_VERSION - Module not in approved list" >> /tmp/unapproved_deps.txt
+                echo "UNAPPROVED|$MODULE|$NEW_VERSION (was $OLD_VERSION)|Not approved in the dependency registry" >> /tmp/all_deps_status.txt
             else
-                # Check if version matches any constraint
+                # Check if version matches any constraint and scope is valid
                 MATCH_FOUND=false
-                while IFS= read -r CONSTRAINT; do
+                SCOPE_VALID=false
+                MATCHED_CONSTRAINT=""
+
+                # Get all version entries for this module
+                VERSION_COUNT=$(yq eval ".dependencies[] | select(.module == \"$MODULE\") | .versions | length" "$APPROVED_LIST" 2>/dev/null || echo "0")
+
+                for ((i=0; i<VERSION_COUNT; i++)); do
+                    CONSTRAINT=$(yq eval ".dependencies[] | select(.module == \"$MODULE\") | .versions[$i].version" "$APPROVED_LIST" 2>/dev/null)
+
                     if check_version_constraint "$MODULE" "$NEW_VERSION" "$CONSTRAINT"; then
-                        MATCH_FOUND=true
-                        echo "  ✅ APPROVED: Matches constraint $CONSTRAINT"
-                        echo "$MODULE $OLD_VERSION -> $NEW_VERSION - Approved (constraint: $CONSTRAINT)" >> /tmp/validated_deps.txt
-                        break
+                        # Version matches, now check scope
+                        ALLOWED_SCOPES=$(yq eval ".dependencies[] | select(.module == \"$MODULE\") | .versions[$i].allowed_scopes[]" "$APPROVED_LIST" 2>/dev/null || echo "")
+
+                        # Check if scope contains "*" or "iam"
+                        if echo "$ALLOWED_SCOPES" | grep -qE '^\*$|^iam$'; then
+                            MATCH_FOUND=true
+                            SCOPE_VALID=true
+                            MATCHED_CONSTRAINT="$CONSTRAINT"
+                            echo "  ✅ APPROVED: Matches constraint $CONSTRAINT with valid scope"
+                            echo "$MODULE $OLD_VERSION -> $NEW_VERSION - Approved (constraint: $CONSTRAINT)" >> /tmp/validated_deps.txt
+                            echo "APPROVED|$MODULE|$NEW_VERSION (was $OLD_VERSION)|Approved" >> /tmp/all_deps_status.txt
+                            break
+                        else
+                            # Version matches but scope is not allowed
+                            MATCH_FOUND=true
+                            SCOPE_VALID=false
+                            echo "  ❌ SCOPE MISMATCH: Version matches but scope restriction does not allow iam usage"
+                            echo "$MODULE $NEW_VERSION - Scope mismatch (allowed scopes: $ALLOWED_SCOPES)" >> /tmp/unapproved_deps.txt
+                            echo "UNAPPROVED|$MODULE|$NEW_VERSION (was $OLD_VERSION)|Not approved in the dependency registry (scope mismatch)" >> /tmp/all_deps_status.txt
+                            break
+                        fi
                     fi
-                done <<< "$APPROVED_VERSIONS"
+                done
 
                 if [ "$MATCH_FOUND" = false ]; then
                     echo "  ❌ NOT APPROVED: Version $NEW_VERSION does not match any approved constraint"
                     echo "$MODULE $NEW_VERSION - Version does not match approved constraints: $APPROVED_VERSIONS" >> /tmp/unapproved_deps.txt
+                    echo "UNAPPROVED|$MODULE|$NEW_VERSION (was $OLD_VERSION)|Version does not match approved constraints" >> /tmp/all_deps_status.txt
                 fi
             fi
         fi
