@@ -89,8 +89,20 @@ jobs:
                       comment += `**Version:** ${version}\n`;
                       comment += `**Approved:** ❌ No - ${reason}\n\n`;
                     } else if (status === 'APPROVED') {
+                      // Extract allowed range from reason if present
+                      let allowedRange = '';
+                      if (reason && reason.includes('constraint:')) {
+                        const match = reason.match(/constraint:\s*([^\)]+)/);
+                        if (match) {
+                          allowedRange = match[1].trim();
+                        }
+                      }
+
                       comment += `**Dependency name:** ${module}\n`;
                       comment += `**Version:** ${version}\n`;
+                      if (allowedRange) {
+                        comment += `**Allowed range:** ${allowedRange}\n`;
+                      }
                       comment += `**Approved:** ✅ Yes\n\n`;
                     }
                   }
@@ -137,8 +149,20 @@ jobs:
                     const [status, module, version, reason] = line.split('|');
 
                     if (status === 'APPROVED') {
+                      // Extract allowed range from reason if present
+                      let allowedRange = '';
+                      if (reason && reason.includes('constraint:')) {
+                        const match = reason.match(/constraint:\s*([^\)]+)/);
+                        if (match) {
+                          allowedRange = match[1].trim();
+                        }
+                      }
+
                       comment += `**Dependency name:** ${module}\n`;
                       comment += `**Version:** ${version}\n`;
+                      if (allowedRange) {
+                        comment += `**Allowed range:** ${allowedRange}\n`;
+                      }
                       comment += `**Approved:** ✅ Yes\n\n`;
                     }
                   }

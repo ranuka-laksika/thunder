@@ -169,7 +169,7 @@ for GO_MOD in $CHANGED_GO_MODS; do
                         MATCHED_CONSTRAINT="$CONSTRAINT"
                         echo "  ✅ APPROVED: Matches constraint $CONSTRAINT with valid scope"
                         echo "$MODULE $VERSION - Approved (constraint: $CONSTRAINT)" >> /tmp/validated_deps.txt
-                        echo "APPROVED|$MODULE|$VERSION|Approved" >> /tmp/all_deps_status.txt
+                        echo "APPROVED|$MODULE|$VERSION|Approved (constraint: $CONSTRAINT)" >> /tmp/all_deps_status.txt
                         break
                     else
                         # Version matches but scope is not allowed
@@ -233,7 +233,7 @@ for GO_MOD in $CHANGED_GO_MODS; do
                             MATCHED_CONSTRAINT="$CONSTRAINT"
                             echo "  ✅ APPROVED: Matches constraint $CONSTRAINT with valid scope"
                             echo "$MODULE $OLD_VERSION -> $NEW_VERSION - Approved (constraint: $CONSTRAINT)" >> /tmp/validated_deps.txt
-                            echo "APPROVED|$MODULE|$NEW_VERSION (was $OLD_VERSION)|Approved" >> /tmp/all_deps_status.txt
+                            echo "APPROVED|$MODULE|$NEW_VERSION (was $OLD_VERSION)|Approved (constraint: $CONSTRAINT)" >> /tmp/all_deps_status.txt
                             break
                         else
                             # Version matches but scope is not allowed
