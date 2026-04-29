@@ -9,7 +9,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/redis/go-redis/v9 v9.18.0
-	github.com/gin-gonic/gin v1.10.2-0.20260315091530-7a8b9c1d2e3f
+	github.com/spf13/cobra v1.10.2-0.20260401083000-acde1234beef
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.39.0
