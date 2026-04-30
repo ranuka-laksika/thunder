@@ -19,6 +19,8 @@
 package executor
 
 import (
+	i18ncore "github.com/asgardeo/thunder/internal/system/i18n/core"
+
 	"context"
 	"testing"
 
@@ -80,8 +82,8 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_ResolveFromCaller_Success(
 	httpCtx = security.WithSecurityContextTest(httpCtx, authCtx)
 
 	ctx := &core.NodeContext{
-		FlowID:  "test-flow",
-		Context: httpCtx,
+		ExecutionID: "test-flow",
+		Context:     httpCtx,
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromCaller,
 		},
@@ -107,8 +109,8 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_ResolveFromCaller_CallerOU
 	httpCtx = security.WithSecurityContextTest(httpCtx, authCtx)
 
 	ctx := &core.NodeContext{
-		FlowID:  "test-flow",
-		Context: httpCtx,
+		ExecutionID: "test-flow",
+		Context:     httpCtx,
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromCaller,
 		},
@@ -130,7 +132,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_ResolveFromNotConfigured()
 	httpCtx = security.WithSecurityContextTest(httpCtx, authCtx)
 
 	ctx := &core.NodeContext{
-		FlowID:         "test-flow",
+		ExecutionID:    "test-flow",
 		Context:        httpCtx,
 		NodeProperties: map[string]interface{}{},
 		RuntimeData: map[string]string{
@@ -149,8 +151,8 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_UnsupportedResolveFrom() {
 	httpCtx := context.Background()
 
 	ctx := &core.NodeContext{
-		FlowID:  "test-flow",
-		Context: httpCtx,
+		ExecutionID: "test-flow",
+		Context:     httpCtx,
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: "unsupported",
 		},
@@ -167,7 +169,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PropertyMissing() {
 	httpCtx := context.Background()
 
 	ctx := &core.NodeContext{
-		FlowID:         "test-flow",
+		ExecutionID:    "test-flow",
 		Context:        httpCtx,
 		NodeProperties: map[string]interface{}{},
 		RuntimeData: map[string]string{
@@ -186,7 +188,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_NilNodeProperties() {
 	httpCtx := context.Background()
 
 	ctx := &core.NodeContext{
-		FlowID:         "test-flow",
+		ExecutionID:    "test-flow",
 		Context:        httpCtx,
 		NodeProperties: nil,
 		RuntimeData: map[string]string{
@@ -210,8 +212,8 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PropertyWrongType() {
 	httpCtx = security.WithSecurityContextTest(httpCtx, authCtx)
 
 	ctx := &core.NodeContext{
-		FlowID:  "test-flow",
-		Context: httpCtx,
+		ExecutionID: "test-flow",
+		Context:     httpCtx,
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: 123, // Not a string.
 		},
@@ -226,8 +228,8 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PropertyWrongType() {
 
 func (suite *OUResolverExecutorTestSuite) TestExecute_NilContext() {
 	ctx := &core.NodeContext{
-		FlowID:  "test-flow",
-		Context: nil,
+		ExecutionID: "test-flow",
+		Context:     nil,
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromCaller,
 		},
@@ -244,7 +246,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_NilContext() {
 
 func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_NoDefaultOUID_ReturnsError() {
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -267,7 +269,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_UserSelectedOU_Vali
 	selectedOUID := testChildOUID
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -295,7 +297,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_UserSelectedOU_NotI
 	selectedOUID := "unrelated-ou-789"
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -323,7 +325,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_UserSelectedOU_Serv
 	selectedOUID := testChildOUID
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -338,7 +340,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_UserSelectedOU_Serv
 	svcErr := &serviceerror.ServiceError{
 		Type:  serviceerror.ServerErrorType,
 		Code:  "OU-50001",
-		Error: "internal error",
+		Error: i18ncore.I18nMessage{Key: "error.test.internal_error", DefaultValue: "internal error"},
 	}
 	suite.mockOUService.On("IsParent", mock.Anything, parentOUID, selectedOUID).
 		Return(false, svcErr)
@@ -356,7 +358,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_UserSelectedOU_Clie
 	selectedOUID := testChildOUID
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -371,7 +373,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_UserSelectedOU_Clie
 	svcErr := &serviceerror.ServiceError{
 		Type:  serviceerror.ClientErrorType,
 		Code:  "OU-40001",
-		Error: "not found",
+		Error: i18ncore.I18nMessage{Key: "error.test.not_found", DefaultValue: "not found"},
 	}
 	suite.mockOUService.On("IsParent", mock.Anything, parentOUID, selectedOUID).
 		Return(false, svcErr)
@@ -388,7 +390,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_NoChildOUs_Skips() 
 	parentOUID := testParentOUID
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -412,7 +414,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_HasChildOUs_Request
 	parentOUID := testParentOUID
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -440,7 +442,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_GetChildrenError_Re
 	parentOUID := testParentOUID
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPrompt,
 		},
@@ -453,7 +455,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_GetChildrenError_Re
 	svcErr := &serviceerror.ServiceError{
 		Type:  serviceerror.ServerErrorType,
 		Code:  "OU-50001",
-		Error: "internal error",
+		Error: i18ncore.I18nMessage{Key: "error.test.internal_error", DefaultValue: "internal error"},
 	}
 	suite.mockOUService.On("GetOrganizationUnitChildren", mock.Anything, parentOUID, 1, 0).
 		Return((*ou.OrganizationUnitListResponse)(nil), svcErr)
@@ -470,7 +472,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_Prompt_GetChildrenError_Re
 
 func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_FirstInvocation_RequestsInput() {
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPromptAll,
 		},
@@ -494,7 +496,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_ValidOUSelection
 	selectedOUID := "valid-ou-123"
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPromptAll,
 		},
@@ -519,7 +521,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_NonExistentOU() 
 	selectedOUID := "nonexistent-ou-999"
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPromptAll,
 		},
@@ -544,7 +546,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_ServiceError() {
 	selectedOUID := "some-ou-123"
 
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPromptAll,
 		},
@@ -557,7 +559,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_ServiceError() {
 	svcErr := &serviceerror.ServiceError{
 		Type:  serviceerror.ServerErrorType,
 		Code:  "OU-50001",
-		Error: "internal error",
+		Error: i18ncore.I18nMessage{Key: "error.test.internal_error", DefaultValue: "internal error"},
 	}
 	suite.mockOUService.On("IsOrganizationUnitExists", mock.Anything, selectedOUID).
 		Return(false, svcErr)
@@ -572,7 +574,7 @@ func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_ServiceError() {
 
 func (suite *OUResolverExecutorTestSuite) TestExecute_PromptAll_EmptyOUInput_RequestsInput() {
 	ctx := &core.NodeContext{
-		FlowID: "flow-123",
+		ExecutionID: "flow-123",
 		NodeProperties: map[string]interface{}{
 			common.NodePropertyOUResolveFrom: ouResolveFromPromptAll,
 		},

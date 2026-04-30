@@ -101,7 +101,7 @@ var githubUserSchema = testutils.UserSchema{
 			"type": "string",
 		},
 		"password": map[string]interface{}{
-			"type": "string",
+			"type":       "string",
 			"credential": true,
 		},
 		"sub": map[string]interface{}{
@@ -189,9 +189,9 @@ func (ts *GithubAuthFlowTestSuite) SetupSuite() {
 
 	// Create user in the pre-configured OU from database scripts
 	user := testutils.User{
-		Type:             githubUserSchema.Name,
-		OUID:             githubUserSchema.OUID,
-		Attributes:       json.RawMessage(attributesJSON),
+		Type:       githubUserSchema.Name,
+		OUID:       githubUserSchema.OUID,
+		Attributes: json.RawMessage(attributesJSON),
 	}
 
 	userID, err := testutils.CreateUser(user)
@@ -263,6 +263,7 @@ func (ts *GithubAuthFlowTestSuite) SetupSuite() {
 	githubAuthTestApp.AuthFlowID = flowID
 
 	// Create test application for GitHub auth tests
+	githubAuthTestApp.OUID = githubAuthTestOU.ID
 	appID, err := testutils.CreateApplication(githubAuthTestApp)
 	if err != nil {
 		ts.T().Fatalf("Failed to create test application during setup: %v", err)
@@ -319,7 +320,7 @@ func (ts *GithubAuthFlowTestSuite) TestGithubAuthFlowInitiation() {
 	// Verify flow status and type
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECT")
-	ts.Require().NotEmpty(flowStep.FlowID, "Flow ID should not be empty")
+	ts.Require().NotEmpty(flowStep.ExecutionID, "Execution ID should not be empty")
 
 	// Validate redirect information
 	ts.Require().NotEmpty(flowStep.Data, "Flow data should not be empty")
@@ -352,8 +353,8 @@ func (ts *GithubAuthFlowTestSuite) TestGithubAuthFlowInvalidAppID() {
 	}
 
 	ts.Require().Equal("FES-1003", errorResp.Code, "Expected error code for invalid app ID")
-	ts.Require().Equal("Invalid request", errorResp.Message, "Expected error message for invalid request")
-	ts.Require().Equal("Invalid app ID provided in the request", errorResp.Description,
+	ts.Require().Equal("Invalid request", errorResp.Message.DefaultValue, "Expected error message for invalid request")
+	ts.Require().Equal("Invalid app ID provided in the request", errorResp.Description.DefaultValue,
 		"Expected error description for invalid app ID")
 }
 
@@ -367,9 +368,9 @@ func (ts *GithubAuthFlowTestSuite) TestGithubAuthFlowCompleteSuccess() {
 	// Verify flow status and type
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECT")
-	ts.Require().NotEmpty(flowStep.FlowID, "Flow ID should not be empty")
+	ts.Require().NotEmpty(flowStep.ExecutionID, "Execution ID should not be empty")
 
-	flowID := flowStep.FlowID
+	ExecutionID := flowStep.ExecutionID
 	redirectURLStr := flowStep.Data.RedirectURL
 	ts.Require().NotEmpty(redirectURLStr, "Redirect URL should not be empty")
 
@@ -385,7 +386,7 @@ func (ts *GithubAuthFlowTestSuite) TestGithubAuthFlowCompleteSuccess() {
 		"code": authCode,
 	}
 
-	completeFlowStep, err := common.CompleteFlow(flowID, inputs, "")
+	completeFlowStep, err := common.CompleteFlow(ExecutionID, inputs, "", flowStep.ChallengeToken)
 	if err != nil {
 		ts.T().Fatalf("Failed to complete GitHub authentication flow: %v", err)
 	}
@@ -414,14 +415,14 @@ func (ts *GithubAuthFlowTestSuite) TestGithubAuthFlowCompleteWithInvalidCode() {
 		ts.T().Fatalf("Failed to initiate GitHub authentication flow: %v", err)
 	}
 
-	flowID := flowStep.FlowID
+	ExecutionID := flowStep.ExecutionID
 
 	// Step 2: Try to complete with invalid authorization code
 	inputs := map[string]string{
 		"code": "invalid-auth-code-12345",
 	}
 
-	_, err = common.CompleteFlow(flowID, inputs, "")
+	_, err = common.CompleteFlow(ExecutionID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().Error(err, "Should fail with invalid authorization code")
 }
 
@@ -432,14 +433,14 @@ func (ts *GithubAuthFlowTestSuite) TestGithubAuthFlowCompleteWithMissingCode() {
 		ts.T().Fatalf("Failed to initiate GitHub authentication flow: %v", err)
 	}
 
-	flowID := flowStep.FlowID
+	ExecutionID := flowStep.ExecutionID
 
 	// Step 2: Try to complete without providing authorization code
 	inputs := map[string]string{}
 
 	// When required inputs are missing, the flow returns INCOMPLETE status (not an error)
 	// and asks for the missing inputs again
-	flowStep, err = common.CompleteFlow(flowID, inputs, "")
+	flowStep, err = common.CompleteFlow(ExecutionID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Should not return error when inputs are missing")
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus,
 		"Flow should remain INCOMPLETE when required inputs are missing")

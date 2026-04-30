@@ -28,16 +28,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/asgardeo/thunder/internal/entity"
 	oupkg "github.com/asgardeo/thunder/internal/ou"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	"github.com/asgardeo/thunder/internal/system/log"
 	"github.com/asgardeo/thunder/internal/system/security"
 	"github.com/asgardeo/thunder/internal/system/sysauthz"
 	"github.com/asgardeo/thunder/internal/system/utils"
-	"github.com/asgardeo/thunder/internal/user"
+	"github.com/asgardeo/thunder/tests/mocks/entitymock"
 	"github.com/asgardeo/thunder/tests/mocks/oumock"
 	"github.com/asgardeo/thunder/tests/mocks/sysauthzmock"
-	"github.com/asgardeo/thunder/tests/mocks/usermock"
 	"github.com/asgardeo/thunder/tests/mocks/userschemamock"
 )
 
@@ -68,9 +68,9 @@ func newAllowAllAuthz(t *testing.T) sysauthz.SystemAuthorizationServiceInterface
 func newAuthzError(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
 	mockAuthz := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
 	mockAuthz.On("IsActionAllowed", mock.Anything, mock.Anything, mock.Anything).
-		Return(false, &ErrorInternalServerError).Maybe()
+		Return(false, &serviceerror.InternalServerError).Maybe()
 	mockAuthz.On("GetAccessibleResources", mock.Anything, mock.Anything, security.ResourceTypeOU).
-		Return((*sysauthz.AccessibleResources)(nil), &ErrorInternalServerError).Maybe()
+		Return((*sysauthz.AccessibleResources)(nil), &serviceerror.InternalServerError).Maybe()
 	return mockAuthz
 }
 
@@ -127,7 +127,6 @@ func runGroupRequestValidationTests[T any](
 			err := validate(tc.request)
 			if tc.wantErr {
 				suite.Require().NotNil(err)
-				suite.Require().Equal(ErrorInvalidRequestFormat, *err)
 			} else {
 				suite.Require().Nil(err)
 			}
@@ -185,7 +184,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupList() {
 					Return(0, errors.New("count failure")).
 					Once()
 			},
-			wantErr: &ErrorInternalServerError,
+			wantErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:   "list retrieval error",
@@ -199,7 +198,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupList() {
 					Return(nil, errors.New("list failure")).
 					Once()
 			},
-			wantErr: &ErrorInternalServerError,
+			wantErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:   "filtered by OUIDs",
@@ -264,7 +263,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupList() {
 			limit:      5,
 			offset:     0,
 			authzSetup: newAuthzError,
-			wantErr:    &ErrorInternalServerError,
+			wantErr:    &serviceerror.InternalServerError,
 		},
 	}
 
@@ -448,7 +447,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupsByPath() {
 					Once()
 				return nil
 			},
-			wantErr: &ErrorInternalServerError,
+			wantErr: &serviceerror.InternalServerError,
 			assertStoreCalls: func(storeMock *groupStoreInterfaceMock) {
 				storeMock.AssertNotCalled(suite.T(), "GetGroupsByOrganizationUnit",
 					mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -475,7 +474,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupsByPath() {
 					Once()
 				return nil
 			},
-			wantErr: &ErrorInternalServerError,
+			wantErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:   "access denied",
@@ -554,9 +553,9 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupsByPath() {
 
 func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 	type setupArgs struct {
-		store *groupStoreInterfaceMock
-		ou    *oumock.OrganizationUnitServiceInterfaceMock
-		user  *usermock.UserServiceInterfaceMock
+		store  *groupStoreInterfaceMock
+		ou     *oumock.OrganizationUnitServiceInterfaceMock
+		entity *entitymock.EntityServiceInterfaceMock
 	}
 
 	testCases := []struct {
@@ -597,9 +596,9 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 					Return(true, nil).
 					Once()
 
-				args.user.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).
-					Once()
+				args.entity.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+					Return([]entity.Entity{{ID: "usr-001", Category: entity.EntityCategoryUser}}, nil).
+					Times(2)
 			},
 			expectRes: true,
 		},
@@ -613,9 +612,6 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 				args.ou.On("IsOrganizationUnitExists", mock.Anything, "ou-unknown").
 					Return(false, nil).
 					Once()
-				args.user.On("ValidateUserIDs", mock.Anything, []string{}).
-					Return([]string{}, nil).
-					Maybe()
 			},
 			expectErr: &ErrorInvalidOUID,
 		},
@@ -627,17 +623,14 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 				Members: []Member{{ID: "usr-invalid", Type: MemberTypeUser}},
 			},
 			setup: func(args *setupArgs) {
-				args.store.On("CheckGroupNameConflictForCreate", mock.Anything, "engineering", "ou-001").
-					Return(nil).
-					Maybe()
 				args.ou.On("IsOrganizationUnitExists", mock.Anything, "ou-001").
 					Return(true, nil).
 					Once()
-				args.user.On("ValidateUserIDs", mock.Anything, []string{"usr-invalid"}).
-					Return([]string{"usr-invalid"}, nil).
+				args.entity.On("GetEntitiesByIDs", mock.Anything, []string{"usr-invalid"}).
+					Return([]entity.Entity{}, nil).
 					Once()
 			},
-			expectErr: &ErrorInvalidUserMemberID,
+			expectErr: &ErrorInvalidMemberID,
 		},
 		{
 			name: "name conflict",
@@ -651,9 +644,6 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 					Once()
 				args.ou.On("IsOrganizationUnitExists", mock.Anything, "ou-001").
 					Return(true, nil).
-					Once()
-				args.store.On("ValidateGroupIDs", mock.Anything, mock.Anything).
-					Return([]string{}, nil).
 					Once()
 			},
 			expectErr: &ErrorGroupNameConflict,
@@ -671,11 +661,8 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 				args.ou.On("IsOrganizationUnitExists", mock.Anything, "ou-001").
 					Return(true, nil).
 					Once()
-				args.store.On("ValidateGroupIDs", mock.Anything, mock.Anything).
-					Return([]string{}, nil).
-					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name: "create error",
@@ -687,9 +674,6 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 				args.store.On("CheckGroupNameConflictForCreate", mock.Anything, "engineering", "ou-001").
 					Return(nil).
 					Once()
-				args.store.On("ValidateGroupIDs", mock.Anything, mock.Anything).
-					Return([]string{}, nil).
-					Once()
 				args.store.On("CreateGroup", mock.Anything, mock.Anything).
 					Return(errors.New("create fail")).
 					Once()
@@ -697,7 +681,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 					Return(true, nil).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name: "organization unit service error",
@@ -711,7 +695,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 						&serviceerror.ServiceError{Code: "OU-5000", Type: serviceerror.ServerErrorType}).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name: "access denied",
@@ -739,13 +723,13 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 		suite.Run(tc.name, func() {
 			var storeMock *groupStoreInterfaceMock
 			var ouServiceMock *oumock.OrganizationUnitServiceInterfaceMock
-			var userServiceMock *usermock.UserServiceInterfaceMock
+			var entityServiceMock *entitymock.EntityServiceInterfaceMock
 
 			if tc.setup != nil {
 				storeMock = newGroupStoreInterfaceMock(suite.T())
 				ouServiceMock = oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
-				userServiceMock = usermock.NewUserServiceInterfaceMock(suite.T())
-				tc.setup(&setupArgs{store: storeMock, ou: ouServiceMock, user: userServiceMock})
+				entityServiceMock = entitymock.NewEntityServiceInterfaceMock(suite.T())
+				tc.setup(&setupArgs{store: storeMock, ou: ouServiceMock, entity: entityServiceMock})
 			}
 
 			var authzSvc sysauthz.SystemAuthorizationServiceInterface
@@ -758,7 +742,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 				authzService:  authzSvc,
 				groupStore:    storeMock,
 				ouService:     ouServiceMock,
-				userService:   userServiceMock,
+				entityService: entityServiceMock,
 				transactioner: &stubTransactioner{},
 			}
 
@@ -781,8 +765,8 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 			if ouServiceMock != nil {
 				ouServiceMock.AssertExpectations(suite.T())
 			}
-			if userServiceMock != nil {
-				userServiceMock.AssertExpectations(suite.T())
+			if entityServiceMock != nil {
+				entityServiceMock.AssertExpectations(suite.T())
 			}
 		})
 	}
@@ -790,9 +774,9 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroup() {
 
 func (suite *GroupServiceTestSuite) TestGroupService_CreateGroupByPath() {
 	type setupArgs struct {
-		store *groupStoreInterfaceMock
-		ou    *oumock.OrganizationUnitServiceInterfaceMock
-		user  *usermock.UserServiceInterfaceMock
+		store  *groupStoreInterfaceMock
+		ou     *oumock.OrganizationUnitServiceInterfaceMock
+		entity *entitymock.EntityServiceInterfaceMock
 	}
 
 	testCases := []struct {
@@ -840,21 +824,21 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroupByPath() {
 		suite.Run(tc.name, func() {
 			var storeMock *groupStoreInterfaceMock
 			var ouServiceMock *oumock.OrganizationUnitServiceInterfaceMock
-			var userServiceMock *usermock.UserServiceInterfaceMock
+			var entityServiceMock *entitymock.EntityServiceInterfaceMock
 			var expectedOUError *serviceerror.ServiceError
 
 			if tc.setup != nil {
 				storeMock = newGroupStoreInterfaceMock(suite.T())
 				ouServiceMock = oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
-				userServiceMock = usermock.NewUserServiceInterfaceMock(suite.T())
-				expectedOUError = tc.setup(&setupArgs{store: storeMock, ou: ouServiceMock, user: userServiceMock})
+				entityServiceMock = entitymock.NewEntityServiceInterfaceMock(suite.T())
+				expectedOUError = tc.setup(&setupArgs{store: storeMock, ou: ouServiceMock, entity: entityServiceMock})
 			}
 
 			service := &groupService{
 				authzService:  newAllowAllAuthz(suite.T()),
 				groupStore:    storeMock,
 				ouService:     ouServiceMock,
-				userService:   userServiceMock,
+				entityService: entityServiceMock,
 				transactioner: &stubTransactioner{},
 			}
 
@@ -876,8 +860,8 @@ func (suite *GroupServiceTestSuite) TestGroupService_CreateGroupByPath() {
 			if ouServiceMock != nil {
 				ouServiceMock.AssertExpectations(suite.T())
 			}
-			if userServiceMock != nil {
-				userServiceMock.AssertExpectations(suite.T())
+			if entityServiceMock != nil {
+				entityServiceMock.AssertExpectations(suite.T())
 			}
 		})
 	}
@@ -904,7 +888,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroup() {
 					Return(GroupDAO{}, errors.New("db error")).
 					Once()
 			},
-			wantErr: &ErrorInternalServerError,
+			wantErr: &serviceerror.InternalServerError,
 		},
 		{
 			name: "not found",
@@ -1105,9 +1089,9 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupList_WithIncludeDis
 
 func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 	type setupArgs struct {
-		store *groupStoreInterfaceMock
-		ou    *oumock.OrganizationUnitServiceInterfaceMock
-		user  *usermock.UserServiceInterfaceMock
+		store  *groupStoreInterfaceMock
+		ou     *oumock.OrganizationUnitServiceInterfaceMock
+		entity *entitymock.EntityServiceInterfaceMock
 	}
 
 	testCases := []struct {
@@ -1203,7 +1187,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 					Return(GroupDAO{}, errors.New("db error")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:    "validate organization unit error",
@@ -1237,7 +1221,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 					Return(errors.New("db error")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:    "update error",
@@ -1257,7 +1241,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 					Return(errors.New("update fail")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:    "access denied on source OU",
@@ -1332,13 +1316,13 @@ func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 		suite.Run(tc.name, func() {
 			var storeMock *groupStoreInterfaceMock
 			var ouServiceMock *oumock.OrganizationUnitServiceInterfaceMock
-			var userServiceMock *usermock.UserServiceInterfaceMock
+			var entityServiceMock *entitymock.EntityServiceInterfaceMock
 
 			if tc.setup != nil {
 				storeMock = newGroupStoreInterfaceMock(suite.T())
 				ouServiceMock = oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
-				userServiceMock = usermock.NewUserServiceInterfaceMock(suite.T())
-				tc.setup(&setupArgs{store: storeMock, ou: ouServiceMock, user: userServiceMock})
+				entityServiceMock = entitymock.NewEntityServiceInterfaceMock(suite.T())
+				tc.setup(&setupArgs{store: storeMock, ou: ouServiceMock, entity: entityServiceMock})
 			}
 
 			var authzSvc sysauthz.SystemAuthorizationServiceInterface
@@ -1351,7 +1335,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 				authzService:  authzSvc,
 				groupStore:    storeMock,
 				ouService:     ouServiceMock,
-				userService:   userServiceMock,
+				entityService: entityServiceMock,
 				transactioner: &stubTransactioner{},
 			}
 
@@ -1374,8 +1358,8 @@ func (suite *GroupServiceTestSuite) TestGroupService_UpdateGroup() {
 			if ouServiceMock != nil {
 				ouServiceMock.AssertExpectations(suite.T())
 			}
-			if userServiceMock != nil {
-				userServiceMock.AssertExpectations(suite.T())
+			if entityServiceMock != nil {
+				entityServiceMock.AssertExpectations(suite.T())
 			}
 		})
 	}
@@ -1414,7 +1398,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_DeleteGroup() {
 					Return(GroupDAO{}, errors.New("db error")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name: "delete error",
@@ -1427,7 +1411,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_DeleteGroup() {
 					Return(errors.New("delete fail")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name: "group not found",
@@ -1503,14 +1487,15 @@ func (suite *GroupServiceTestSuite) TestGroupService_DeleteGroup() {
 
 func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 	testCases := []struct {
-		name       string
-		id         string
-		limit      int
-		offset     int
-		setup      func(*groupStoreInterfaceMock)
-		authzSetup func(*testing.T) sysauthz.SystemAuthorizationServiceInterface
-		expectErr  *serviceerror.ServiceError
-		expectRes  bool
+		name        string
+		id          string
+		limit       int
+		offset      int
+		setup       func(*groupStoreInterfaceMock)
+		entitySetup func(*testing.T) entity.EntityServiceInterface
+		authzSetup  func(*testing.T) sysauthz.SystemAuthorizationServiceInterface
+		expectErr   *serviceerror.ServiceError
+		expectRes   bool
 	}{
 		{
 			name:   "success",
@@ -1526,10 +1511,18 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 					Once()
 				storeMock.On("GetGroupMembers", mock.Anything, "grp-001", 2, 0).
 					Return([]Member{
-						{ID: "usr-001", Type: MemberTypeUser},
+						{ID: "usr-001", Type: memberTypeEntity},
 						{ID: "grp-002", Type: MemberTypeGroup},
 					}, nil).
 					Once()
+			},
+			entitySetup: func(t *testing.T) entity.EntityServiceInterface {
+				entitySvcMock := entitymock.NewEntityServiceInterfaceMock(t)
+				entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+					Return([]entity.Entity{
+						{ID: "usr-001", Category: entity.EntityCategoryUser},
+					}, nil).Once()
+				return entitySvcMock
 			},
 			expectRes: true,
 		},
@@ -1569,7 +1562,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 					Return(GroupDAO{}, errors.New("db error")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:   "count error",
@@ -1584,7 +1577,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 					Return(0, errors.New("count fail")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:   "list error",
@@ -1602,7 +1595,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 					Return(nil, errors.New("list fail")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 		{
 			name:   "access denied",
@@ -1646,9 +1639,14 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 			} else {
 				authzSvc = newAllowAllAuthz(suite.T())
 			}
+			var entitySvc entity.EntityServiceInterface
+			if tc.entitySetup != nil {
+				entitySvc = tc.entitySetup(suite.T())
+			}
 			service := &groupService{
-				authzService: authzSvc,
-				groupStore:   storeMock,
+				authzService:  authzSvc,
+				groupStore:    storeMock,
+				entityService: entitySvc,
 			}
 
 			response, err := service.GetGroupMembers(context.Background(), tc.id, tc.limit, tc.offset, false)
@@ -1664,6 +1662,8 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers() {
 				suite.Require().Equal(2, response.Count)
 				suite.Require().Equal(1, response.StartIndex)
 				suite.Require().Len(response.Members, 2)
+				suite.Require().Equal(MemberTypeUser, response.Members[0].Type)
+				suite.Require().Equal(MemberTypeGroup, response.Members[1].Type)
 			} else {
 				suite.Require().Nil(err)
 			}
@@ -1683,19 +1683,20 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers_WithDisplay
 		Return(2, nil).Once()
 	storeMock.On("GetGroupMembers", mock.Anything, "grp-001", 5, 0).
 		Return([]Member{
-			{ID: "usr-001", Type: MemberTypeUser},
+			{ID: "usr-001", Type: memberTypeEntity},
 			{ID: "grp-002", Type: MemberTypeGroup},
 		}, nil).Once()
 
-	userSvcMock := usermock.NewUserServiceInterfaceMock(suite.T())
-	userSvcMock.On("GetUsersByIDs", mock.Anything, []string{"usr-001"}).
-		Return(map[string]*user.User{
-			"usr-001": {
+	entitySvcMock := entitymock.NewEntityServiceInterfaceMock(suite.T())
+	entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+		Return([]entity.Entity{
+			{
 				ID:         "usr-001",
+				Category:   entity.EntityCategoryUser,
 				Type:       "employee",
 				Attributes: json.RawMessage(`{"name":"Alice"}`),
 			},
-		}, (*serviceerror.ServiceError)(nil)).Once()
+		}, nil).Once()
 
 	schemaMock := userschemamock.NewUserSchemaServiceInterfaceMock(suite.T())
 	schemaMock.On("GetDisplayAttributesByNames", mock.Anything, mock.Anything).
@@ -1709,7 +1710,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers_WithDisplay
 	service := &groupService{
 		authzService:      newAllowAllAuthz(suite.T()),
 		groupStore:        storeMock,
-		userService:       userSvcMock,
+		entityService:     entitySvcMock,
 		userSchemaService: schemaMock,
 	}
 
@@ -1717,6 +1718,8 @@ func (suite *GroupServiceTestSuite) TestGroupService_GetGroupMembers_WithDisplay
 	suite.Require().Nil(err)
 	suite.Require().NotNil(resp)
 	suite.Require().Len(resp.Members, 2)
+	suite.Require().Equal(MemberTypeUser, resp.Members[0].Type)
+	suite.Require().Equal(MemberTypeGroup, resp.Members[1].Type)
 	suite.Require().Equal("Alice", resp.Members[0].Display)
 	suite.Require().Equal("Engineering", resp.Members[1].Display)
 }
@@ -1814,7 +1817,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_ValidateOUHandlesInternalEr
 	err := service.validateOU(context.Background(), "ou-1")
 
 	require.NotNil(t, err)
-	require.Equal(t, ErrorInternalServerError, *err)
+	require.Equal(t, serviceerror.InternalServerError, *err)
 }
 
 func (suite *GroupServiceTestSuite) TestGroupService_ValidateAndProcessHandlePath() {
@@ -1878,197 +1881,6 @@ func (suite *GroupServiceTestSuite) TestGroupService_ValidateAndProcessHandlePat
 	}
 }
 
-func (suite *GroupServiceTestSuite) TestGroupService_ValidateUserIDsHandlesServiceError() {
-	t := suite.T()
-	userServiceMock := usermock.NewUserServiceInterfaceMock(t)
-	userServiceMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-		Return([]string{}, &serviceerror.ServiceError{
-			Code: "USR-5000",
-			Type: serviceerror.ServerErrorType,
-		}).
-		Once()
-
-	service := &groupService{
-		authzService: newAllowAllAuthz(suite.T()),
-		userService:  userServiceMock,
-	}
-
-	err := service.validateUserIDs(context.Background(), []string{"usr-001"})
-
-	require.NotNil(t, err)
-	require.Equal(t, ErrorInternalServerError, *err)
-}
-
-func (suite *GroupServiceTestSuite) TestGroupService_ValidateUserIDsWithAccess() {
-	testCases := []struct {
-		name       string
-		userIDs    []string
-		setup      func(*usermock.UserServiceInterfaceMock)
-		authzSetup func(*testing.T) sysauthz.SystemAuthorizationServiceInterface
-		wantErr    *serviceerror.ServiceError
-	}{
-		{
-			name:    "empty user IDs returns nil immediately",
-			userIDs: []string{},
-			wantErr: nil,
-		},
-		{
-			name:    "invalid user IDs returns 400",
-			userIDs: []string{"usr-invalid"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-invalid"}).
-					Return([]string{"usr-invalid"}, nil).Once()
-			},
-			wantErr: &ErrorInvalidUserMemberID,
-		},
-		{
-			name:    "user service error on validate IDs returns 500",
-			userIDs: []string{"usr-001"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return(nil, &serviceerror.ServiceError{Code: "USR-5000", Type: serviceerror.ServerErrorType}).
-					Once()
-			},
-			wantErr: &ErrorInternalServerError,
-		},
-		{
-			name:    "full admin skips OU scope check",
-			userIDs: []string{"usr-001"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-				// ValidateUserIDsInOUs must NOT be called when AllAllowed is true.
-			},
-			// authzSetup nil → newAllowAllAuthz → AllAllowed: true
-			wantErr: nil,
-		},
-		{
-			name:    "user in accessible OU returns nil",
-			userIDs: []string{"usr-001"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-				userMock.On("ValidateUserIDsInOUs", mock.Anything, []string{"usr-001"}, []string{testOUID1}).
-					Return([]string{}, nil).Once()
-			},
-			authzSetup: func(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
-				m := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
-				m.On("GetAccessibleResources", mock.Anything,
-					security.ActionUpdateGroup, security.ResourceTypeOU).
-					Return(&sysauthz.AccessibleResources{
-						AllAllowed: false, IDs: []string{testOUID1},
-					}, (*serviceerror.ServiceError)(nil))
-				return m
-			},
-			wantErr: nil,
-		},
-		{
-			name:    "user outside accessible OU returns 403",
-			userIDs: []string{"usr-002"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-002"}).
-					Return([]string{}, nil).Once()
-				userMock.On("ValidateUserIDsInOUs", mock.Anything, []string{"usr-002"}, []string{testOUID1}).
-					Return([]string{"usr-002"}, nil).Once()
-			},
-			authzSetup: func(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
-				m := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
-				m.On("GetAccessibleResources", mock.Anything,
-					security.ActionUpdateGroup, security.ResourceTypeOU).
-					Return(&sysauthz.AccessibleResources{
-						AllAllowed: false, IDs: []string{testOUID1},
-					}, (*serviceerror.ServiceError)(nil))
-				return m
-			},
-			wantErr: &serviceerror.ErrorUnauthorized,
-		},
-		{
-			name:    "no accessible OUs makes all users out of scope",
-			userIDs: []string{"usr-001"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-				userMock.On("ValidateUserIDsInOUs", mock.Anything, []string{"usr-001"}, []string{}).
-					Return([]string{"usr-001"}, nil).Once()
-			},
-			authzSetup: func(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
-				m := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
-				m.On("GetAccessibleResources", mock.Anything,
-					security.ActionUpdateGroup, security.ResourceTypeOU).
-					Return(&sysauthz.AccessibleResources{
-						AllAllowed: false, IDs: []string{},
-					}, (*serviceerror.ServiceError)(nil))
-				return m
-			},
-			wantErr: &serviceerror.ErrorUnauthorized,
-		},
-		{
-			name:    "authz service error propagates",
-			userIDs: []string{"usr-001"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-			},
-			authzSetup: newAuthzError,
-			wantErr:    &ErrorInternalServerError,
-		},
-		{
-			name:    "validate in OUs store error returns 500",
-			userIDs: []string{"usr-001"},
-			setup: func(userMock *usermock.UserServiceInterfaceMock) {
-				userMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-				userMock.On("ValidateUserIDsInOUs", mock.Anything, []string{"usr-001"}, []string{testOUID1}).
-					Return(nil, &serviceerror.ServiceError{Code: "USR-5000", Type: serviceerror.ServerErrorType}).
-					Once()
-			},
-			authzSetup: func(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
-				m := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
-				m.On("GetAccessibleResources", mock.Anything,
-					security.ActionUpdateGroup, security.ResourceTypeOU).
-					Return(&sysauthz.AccessibleResources{
-						AllAllowed: false, IDs: []string{testOUID1},
-					}, (*serviceerror.ServiceError)(nil))
-				return m
-			},
-			wantErr: &ErrorInternalServerError,
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		suite.Run(tc.name, func() {
-			userServiceMock := usermock.NewUserServiceInterfaceMock(suite.T())
-			if tc.setup != nil {
-				tc.setup(userServiceMock)
-			}
-
-			var authzSvc sysauthz.SystemAuthorizationServiceInterface
-			if tc.authzSetup != nil {
-				authzSvc = tc.authzSetup(suite.T())
-			} else {
-				authzSvc = newAllowAllAuthz(suite.T())
-			}
-
-			service := &groupService{
-				authzService: authzSvc,
-				userService:  userServiceMock,
-			}
-
-			err := service.validateUserIDsWithAccess(context.Background(), tc.userIDs)
-
-			if tc.wantErr != nil {
-				suite.Require().NotNil(err)
-				suite.Require().Equal(*tc.wantErr, *err)
-			} else {
-				suite.Require().Nil(err)
-			}
-
-			userServiceMock.AssertExpectations(suite.T())
-		})
-	}
-}
-
 func (suite *GroupServiceTestSuite) TestGroupService_ValidateGroupIDs() {
 	testCases := []struct {
 		name      string
@@ -2091,7 +1903,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_ValidateGroupIDs() {
 					Return(nil, errors.New("db error")).
 					Once()
 			},
-			expectErr: &ErrorInternalServerError,
+			expectErr: &serviceerror.InternalServerError,
 		},
 	}
 
@@ -2113,128 +1925,44 @@ func (suite *GroupServiceTestSuite) TestGroupService_ValidateGroupIDs() {
 	}
 }
 
-func (suite *GroupServiceTestSuite) TestGroupService_AddGroupMembers() {
-	testCases := []struct {
-		name       string
-		groupID    string
-		members    []Member
-		setup      func(*groupStoreInterfaceMock, *usermock.UserServiceInterfaceMock)
-		authzSetup func(*testing.T) sysauthz.SystemAuthorizationServiceInterface
-		wantErr    *serviceerror.ServiceError
-	}{
-		{
-			name:    "missing group id",
-			groupID: "",
-			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			wantErr: &ErrorMissingGroupID,
-		},
-		{
-			name:    "empty members list",
-			groupID: "grp-001",
-			members: []Member{},
-			wantErr: &ErrorEmptyMembers,
-		},
-		{
-			name:    "invalid member type",
-			groupID: "grp-001",
-			members: []Member{{ID: "usr-001", Type: "invalid"}},
-			wantErr: &ErrorInvalidRequestFormat,
-		},
-		{
-			name:    "empty member id",
-			groupID: "grp-001",
-			members: []Member{{ID: "", Type: MemberTypeUser}},
-			wantErr: &ErrorInvalidRequestFormat,
-		},
-		{
-			name:    "group not found",
-			groupID: "grp-001",
-			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock, _ *usermock.UserServiceInterfaceMock) {
-				storeMock.On("GetGroup", mock.Anything, "grp-001").
-					Return(GroupDAO{}, ErrGroupNotFound).Once()
-			},
-			wantErr: &ErrorGroupNotFound,
-		},
-		{
-			name:    "invalid user member id",
-			groupID: "grp-001",
-			members: []Member{{ID: "usr-invalid", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock, userServiceMock *usermock.UserServiceInterfaceMock) {
-				storeMock.On("GetGroup", mock.Anything, "grp-001").
-					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil).Once()
-				userServiceMock.On("ValidateUserIDs", mock.Anything, []string{"usr-invalid"}).
-					Return([]string{"usr-invalid"}, nil).Once()
-			},
-			wantErr: &ErrorInvalidUserMemberID,
-		},
-		{
-			name:    "store failure",
-			groupID: "grp-001",
-			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock, userServiceMock *usermock.UserServiceInterfaceMock) {
-				storeMock.On("GetGroup", mock.Anything, "grp-001").
-					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil).Once()
-				userServiceMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-				storeMock.On("ValidateGroupIDs", mock.Anything, mock.Anything).
-					Return([]string{}, nil).Once()
-				storeMock.On("AddGroupMembers", mock.Anything, "grp-001", mock.Anything).
-					Return(errors.New("db error")).Once()
-			},
-			wantErr: &ErrorInternalServerError,
-		},
-		{
-			name:    "success",
-			groupID: "grp-001",
-			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock, userServiceMock *usermock.UserServiceInterfaceMock) {
-				storeMock.On("GetGroup", mock.Anything, "grp-001").
-					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil)
-				userServiceMock.On("ValidateUserIDs", mock.Anything, []string{"usr-001"}).
-					Return([]string{}, nil).Once()
-				storeMock.On("ValidateGroupIDs", mock.Anything, mock.Anything).
-					Return([]string{}, nil).Once()
-				storeMock.On("AddGroupMembers", mock.Anything, "grp-001",
-					[]Member{{ID: "usr-001", Type: MemberTypeUser}}).
-					Return(nil).Once()
-			},
-			wantErr: nil,
-		},
-		{
-			name:    "access denied",
-			groupID: "grp-001",
-			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock, _ *usermock.UserServiceInterfaceMock) {
-				storeMock.On("GetGroup", mock.Anything, "grp-001").
-					Return(GroupDAO{ID: "grp-001", OUID: testOUID1}, nil).Once()
-			},
-			authzSetup: func(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
-				authzMock := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
-				authzMock.On(
-					"IsActionAllowed",
-					mock.Anything,
-					security.ActionUpdateGroup,
-					&sysauthz.ActionContext{
-						OUID:         testOUID1,
-						ResourceType: security.ResourceTypeGroup,
-						ResourceID:   "grp-001",
-					},
-				).Return(false, (*serviceerror.ServiceError)(nil))
-				return authzMock
-			},
-			wantErr: &serviceerror.ErrorUnauthorized,
-		},
-	}
+type groupMemberTestCase struct {
+	name       string
+	groupID    string
+	members    []Member
+	setup      func(*groupStoreInterfaceMock, *entitymock.EntityServiceInterfaceMock)
+	authzSetup func(*testing.T) sysauthz.SystemAuthorizationServiceInterface
+	wantErr    *serviceerror.ServiceError
+}
 
+func newAccessDeniedUpdateGroupAuthz(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
+	authzMock := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
+	authzMock.On("GetAccessibleResources", mock.Anything, mock.Anything, security.ResourceTypeOU).
+		Return(&sysauthz.AccessibleResources{AllAllowed: true}, (*serviceerror.ServiceError)(nil)).Maybe()
+	authzMock.On(
+		"IsActionAllowed",
+		mock.Anything,
+		security.ActionUpdateGroup,
+		&sysauthz.ActionContext{
+			OUID:         testOUID1,
+			ResourceType: security.ResourceTypeGroup,
+			ResourceID:   "grp-001",
+		},
+	).Return(false, (*serviceerror.ServiceError)(nil))
+	return authzMock
+}
+
+func (suite *GroupServiceTestSuite) runGroupMemberTests(
+	testCases []groupMemberTestCase,
+	op func(*groupService, context.Context, string, []Member) (*Group, *serviceerror.ServiceError),
+) {
 	for _, tc := range testCases {
 		tc := tc
 		suite.Run(tc.name, func() {
 			storeMock := newGroupStoreInterfaceMock(suite.T())
-			userServiceMock := usermock.NewUserServiceInterfaceMock(suite.T())
+			entityServiceMock := entitymock.NewEntityServiceInterfaceMock(suite.T())
 
 			if tc.setup != nil {
-				tc.setup(storeMock, userServiceMock)
+				tc.setup(storeMock, entityServiceMock)
 			}
 
 			var authzSvc sysauthz.SystemAuthorizationServiceInterface
@@ -2246,11 +1974,11 @@ func (suite *GroupServiceTestSuite) TestGroupService_AddGroupMembers() {
 			service := &groupService{
 				authzService:  authzSvc,
 				groupStore:    storeMock,
-				userService:   userServiceMock,
+				entityService: entityServiceMock,
 				transactioner: &stubTransactioner{},
 			}
 
-			group, err := service.AddGroupMembers(context.Background(), tc.groupID, tc.members)
+			group, err := op(service, context.Background(), tc.groupID, tc.members)
 
 			if tc.wantErr != nil {
 				suite.Require().NotNil(err)
@@ -2262,20 +1990,13 @@ func (suite *GroupServiceTestSuite) TestGroupService_AddGroupMembers() {
 			}
 
 			storeMock.AssertExpectations(suite.T())
-			userServiceMock.AssertExpectations(suite.T())
+			entityServiceMock.AssertExpectations(suite.T())
 		})
 	}
 }
 
-func (suite *GroupServiceTestSuite) TestGroupService_RemoveGroupMembers() {
-	testCases := []struct {
-		name       string
-		groupID    string
-		members    []Member
-		setup      func(*groupStoreInterfaceMock)
-		authzSetup func(*testing.T) sysauthz.SystemAuthorizationServiceInterface
-		wantErr    *serviceerror.ServiceError
-	}{
+func (suite *GroupServiceTestSuite) TestGroupService_AddGroupMembers() {
+	testCases := []groupMemberTestCase{
 		{
 			name:    "missing group id",
 			groupID: "",
@@ -2292,7 +2013,7 @@ func (suite *GroupServiceTestSuite) TestGroupService_RemoveGroupMembers() {
 			name:    "invalid member type",
 			groupID: "grp-001",
 			members: []Member{{ID: "usr-001", Type: "invalid"}},
-			wantErr: &ErrorInvalidRequestFormat,
+			wantErr: &ErrorInvalidMemberType,
 		},
 		{
 			name:    "empty member id",
@@ -2304,17 +2025,132 @@ func (suite *GroupServiceTestSuite) TestGroupService_RemoveGroupMembers() {
 			name:    "group not found",
 			groupID: "grp-001",
 			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock) {
+			setup: func(storeMock *groupStoreInterfaceMock, _ *entitymock.EntityServiceInterfaceMock) {
 				storeMock.On("GetGroup", mock.Anything, "grp-001").
 					Return(GroupDAO{}, ErrGroupNotFound).Once()
 			},
 			wantErr: &ErrorGroupNotFound,
 		},
 		{
+			name:    "invalid user member id",
+			groupID: "grp-001",
+			members: []Member{{ID: "usr-invalid", Type: MemberTypeUser}},
+			setup: func(storeMock *groupStoreInterfaceMock, entityServiceMock *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001"}, nil).Once()
+				entityServiceMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-invalid"}).
+					Return([]entity.Entity{}, nil).Once()
+			},
+			wantErr: &ErrorInvalidMemberID,
+		},
+		{
 			name:    "store failure",
 			groupID: "grp-001",
 			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock) {
+			setup: func(storeMock *groupStoreInterfaceMock, entityServiceMock *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil).Once()
+				entityServiceMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+					Return([]entity.Entity{{ID: "usr-001", Category: entity.EntityCategoryUser}}, nil).Once()
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil).Once()
+				storeMock.On("AddGroupMembers", mock.Anything, "grp-001", mock.Anything).
+					Return(errors.New("db error")).Once()
+			},
+			wantErr: &ErrorInternalServerError,
+		},
+		{
+			name:    "success",
+			groupID: "grp-001",
+			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
+			setup: func(storeMock *groupStoreInterfaceMock, entityServiceMock *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil)
+				entityServiceMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+					Return([]entity.Entity{{ID: "usr-001", Category: entity.EntityCategoryUser}}, nil).Once()
+				storeMock.On("AddGroupMembers", mock.Anything, "grp-001",
+					[]Member{{ID: "usr-001", Type: memberTypeEntity}}).
+					Return(nil).Once()
+			},
+			wantErr: nil,
+		},
+		{
+			name:    "access denied",
+			groupID: "grp-001",
+			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
+			setup: func(storeMock *groupStoreInterfaceMock, _ *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001", OUID: testOUID1}, nil).Once()
+			},
+			authzSetup: newAccessDeniedUpdateGroupAuthz,
+			wantErr:    &serviceerror.ErrorUnauthorized,
+		},
+	}
+
+	suite.runGroupMemberTests(testCases, func(svc *groupService, ctx context.Context, id string, members []Member) (
+		*Group, *serviceerror.ServiceError,
+	) {
+		return svc.AddGroupMembers(ctx, id, members)
+	})
+}
+
+func (suite *GroupServiceTestSuite) TestGroupService_RemoveGroupMembers() {
+	testCases := []groupMemberTestCase{
+		{
+			name:    "missing group id",
+			groupID: "",
+			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
+			wantErr: &ErrorMissingGroupID,
+		},
+		{
+			name:    "empty members list",
+			groupID: "grp-001",
+			members: []Member{},
+			wantErr: &ErrorEmptyMembers,
+		},
+		{
+			name:    "invalid member type",
+			groupID: "grp-001",
+			members: []Member{{ID: "usr-001", Type: "invalid"}},
+			wantErr: &ErrorInvalidMemberType,
+		},
+		{
+			name:    "empty member id",
+			groupID: "grp-001",
+			members: []Member{{ID: "", Type: MemberTypeUser}},
+			wantErr: &ErrorInvalidRequestFormat,
+		},
+		{
+			name:    "group not found",
+			groupID: "grp-001",
+			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
+			setup: func(storeMock *groupStoreInterfaceMock, _ *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{}, ErrGroupNotFound).Once()
+			},
+			wantErr: &ErrorGroupNotFound,
+		},
+		{
+			name:    "invalid group member id",
+			groupID: "grp-001",
+			members: []Member{{ID: "grp-invalid", Type: MemberTypeGroup}},
+			setup: func(storeMock *groupStoreInterfaceMock, _ *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001"}, nil).Once()
+				storeMock.On("ValidateGroupIDs", mock.Anything, []string{"grp-invalid"}).
+					Return([]string{"grp-invalid"}, nil).Once()
+			},
+			wantErr: &ErrorInvalidGroupMemberID,
+		},
+		{
+			name:    "store failure",
+			groupID: "grp-001",
+			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
+			setup: func(storeMock *groupStoreInterfaceMock, entityServiceMock *entitymock.EntityServiceInterfaceMock) {
+				storeMock.On("GetGroup", mock.Anything, "grp-001").
+					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil).Once()
+				entityServiceMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+					Return([]entity.Entity{{ID: "usr-001", Category: entity.EntityCategoryUser}}, nil).Once()
 				storeMock.On("GetGroup", mock.Anything, "grp-001").
 					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil).Once()
 				storeMock.On("RemoveGroupMembers", mock.Anything, "grp-001", mock.Anything).
@@ -2326,11 +2162,13 @@ func (suite *GroupServiceTestSuite) TestGroupService_RemoveGroupMembers() {
 			name:    "success",
 			groupID: "grp-001",
 			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock) {
+			setup: func(storeMock *groupStoreInterfaceMock, entityServiceMock *entitymock.EntityServiceInterfaceMock) {
 				storeMock.On("GetGroup", mock.Anything, "grp-001").
 					Return(GroupDAO{ID: "grp-001", Name: "test"}, nil)
+				entityServiceMock.On("GetEntitiesByIDs", mock.Anything, []string{"usr-001"}).
+					Return([]entity.Entity{{ID: "usr-001", Category: entity.EntityCategoryUser}}, nil).Once()
 				storeMock.On("RemoveGroupMembers", mock.Anything, "grp-001",
-					[]Member{{ID: "usr-001", Type: MemberTypeUser}}).
+					[]Member{{ID: "usr-001", Type: memberTypeEntity}}).
 					Return(nil).Once()
 			},
 			wantErr: nil,
@@ -2339,104 +2177,62 @@ func (suite *GroupServiceTestSuite) TestGroupService_RemoveGroupMembers() {
 			name:    "access denied",
 			groupID: "grp-001",
 			members: []Member{{ID: "usr-001", Type: MemberTypeUser}},
-			setup: func(storeMock *groupStoreInterfaceMock) {
+			setup: func(storeMock *groupStoreInterfaceMock, _ *entitymock.EntityServiceInterfaceMock) {
 				storeMock.On("GetGroup", mock.Anything, "grp-001").
 					Return(GroupDAO{ID: "grp-001", OUID: testOUID1}, nil).Once()
 			},
-			authzSetup: func(t *testing.T) sysauthz.SystemAuthorizationServiceInterface {
-				authzMock := sysauthzmock.NewSystemAuthorizationServiceInterfaceMock(t)
-				authzMock.On(
-					"IsActionAllowed",
-					mock.Anything,
-					security.ActionUpdateGroup,
-					&sysauthz.ActionContext{
-						OUID:         testOUID1,
-						ResourceType: security.ResourceTypeGroup,
-						ResourceID:   "grp-001",
-					},
-				).Return(false, (*serviceerror.ServiceError)(nil))
-				return authzMock
-			},
-			wantErr: &serviceerror.ErrorUnauthorized,
+			authzSetup: newAccessDeniedUpdateGroupAuthz,
+			wantErr:    &serviceerror.ErrorUnauthorized,
 		},
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		suite.Run(tc.name, func() {
-			storeMock := newGroupStoreInterfaceMock(suite.T())
-
-			if tc.setup != nil {
-				tc.setup(storeMock)
-			}
-
-			var authzSvc sysauthz.SystemAuthorizationServiceInterface
-			if tc.authzSetup != nil {
-				authzSvc = tc.authzSetup(suite.T())
-			} else {
-				authzSvc = newAllowAllAuthz(suite.T())
-			}
-			service := &groupService{
-				authzService:  authzSvc,
-				groupStore:    storeMock,
-				transactioner: &stubTransactioner{},
-			}
-
-			group, err := service.RemoveGroupMembers(context.Background(), tc.groupID, tc.members)
-
-			if tc.wantErr != nil {
-				suite.Require().NotNil(err)
-				suite.Require().Equal(*tc.wantErr, *err)
-				suite.Require().Nil(group)
-			} else {
-				suite.Require().Nil(err)
-				suite.Require().NotNil(group)
-			}
-
-			storeMock.AssertExpectations(suite.T())
-		})
-	}
+	suite.runGroupMemberTests(testCases, func(svc *groupService, ctx context.Context, id string, members []Member) (
+		*Group, *serviceerror.ServiceError,
+	) {
+		return svc.RemoveGroupMembers(ctx, id, members)
+	})
 }
 
 // resolveUserDisplay Tests
 
 func TestResolveUserDisplay_WithDisplayAttr(t *testing.T) {
-	u := &user.User{
+	e := &entity.Entity{
 		ID:         "user-1",
 		Type:       "employee",
 		Attributes: json.RawMessage(`{"email":"alice@example.com"}`),
 	}
 	paths := map[string]string{"employee": "email"}
-	require.Equal(t, "alice@example.com", utils.ResolveDisplay(u.ID, u.Type, u.Attributes, paths))
+	require.Equal(t, "alice@example.com", utils.ResolveDisplay(e.ID, e.Type, e.Attributes, paths))
 }
 
 func TestResolveUserDisplay_FallbackToID(t *testing.T) {
-	u := &user.User{
+	e := &entity.Entity{
 		ID:         "user-1",
 		Type:       "employee",
 		Attributes: json.RawMessage(`{"name":"Alice"}`),
 	}
 	paths := map[string]string{"employee": "nonexistent"}
-	require.Equal(t, "user-1", utils.ResolveDisplay(u.ID, u.Type, u.Attributes, paths))
+	require.Equal(t, "user-1", utils.ResolveDisplay(e.ID, e.Type, e.Attributes, paths))
 }
 
 func TestResolveUserDisplay_NilPaths(t *testing.T) {
-	u := &user.User{ID: "user-1", Type: "employee"}
-	require.Equal(t, "user-1", utils.ResolveDisplay(u.ID, u.Type, u.Attributes, nil))
+	e := &entity.Entity{ID: "user-1", Type: "employee"}
+	require.Equal(t, "user-1", utils.ResolveDisplay(e.ID, e.Type, e.Attributes, nil))
 }
 
-// populateMemberDisplayNames Tests
+// resolveMembers Tests
 
 func TestPopulateMemberDisplayNames_MixedMembers(t *testing.T) {
-	userSvcMock := usermock.NewUserServiceInterfaceMock(t)
-	userSvcMock.On("GetUsersByIDs", mock.Anything, []string{"user-1"}).
-		Return(map[string]*user.User{
-			"user-1": {
+	entitySvcMock := entitymock.NewEntityServiceInterfaceMock(t)
+	entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"user-1"}).
+		Return([]entity.Entity{
+			{
 				ID:         "user-1",
+				Category:   entity.EntityCategoryUser,
 				Type:       "employee",
 				Attributes: json.RawMessage(`{"name":"Alice"}`),
 			},
-		}, (*serviceerror.ServiceError)(nil)).Once()
+		}, nil).Once()
 
 	schemaMock := userschemamock.NewUserSchemaServiceInterfaceMock(t)
 	schemaMock.On("GetDisplayAttributesByNames", mock.Anything, mock.Anything).
@@ -2449,64 +2245,69 @@ func TestPopulateMemberDisplayNames_MixedMembers(t *testing.T) {
 		}, nil).Once()
 
 	service := &groupService{
-		userService:       userSvcMock,
+		entityService:     entitySvcMock,
 		userSchemaService: schemaMock,
 		groupStore:        storeMock,
 	}
 	logger := log.GetLogger()
 
 	members := []Member{
-		{ID: "user-1", Type: MemberTypeUser},
+		{ID: "user-1", Type: memberTypeEntity},
 		{ID: "group-1", Type: MemberTypeGroup},
 	}
 
-	service.populateMemberDisplayNames(context.Background(), members, logger)
-	require.Equal(t, "Alice", members[0].Display)
-	require.Equal(t, "Engineering", members[1].Display)
+	resolved, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.Nil(t, svcErr)
+	require.Len(t, resolved, 2)
+	require.Equal(t, "Alice", resolved[0].Display)
+	require.Equal(t, "Engineering", resolved[1].Display)
 }
 
 func TestPopulateMemberDisplayNames_UserFallbackToID(t *testing.T) {
-	userSvcMock := usermock.NewUserServiceInterfaceMock(t)
-	userSvcMock.On("GetUsersByIDs", mock.Anything, []string{"user-1"}).
-		Return(map[string]*user.User{
-			"user-1": {ID: "user-1", Type: "employee", Attributes: json.RawMessage(`{}`)},
-		}, (*serviceerror.ServiceError)(nil)).Once()
+	entitySvcMock := entitymock.NewEntityServiceInterfaceMock(t)
+	entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"user-1"}).
+		Return([]entity.Entity{
+			{ID: "user-1", Category: entity.EntityCategoryUser, Type: "employee", Attributes: json.RawMessage(`{}`)},
+		}, nil).Once()
 
 	schemaMock := userschemamock.NewUserSchemaServiceInterfaceMock(t)
 	schemaMock.On("GetDisplayAttributesByNames", mock.Anything, mock.Anything).
 		Return(map[string]string{"employee": "missing"}, (*serviceerror.ServiceError)(nil)).Once()
 
 	service := &groupService{
-		userService:       userSvcMock,
+		entityService:     entitySvcMock,
 		userSchemaService: schemaMock,
 	}
 	logger := log.GetLogger()
 
 	members := []Member{
-		{ID: "user-1", Type: MemberTypeUser},
+		{ID: "user-1", Type: memberTypeEntity},
 	}
 
-	service.populateMemberDisplayNames(context.Background(), members, logger)
-	require.Equal(t, "user-1", members[0].Display)
+	resolved, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.Nil(t, svcErr)
+	require.Len(t, resolved, 1)
+	require.Equal(t, "user-1", resolved[0].Display)
 }
 
 func TestPopulateMemberDisplayNames_UserServiceError(t *testing.T) {
-	userSvcMock := usermock.NewUserServiceInterfaceMock(t)
-	userSvcMock.On("GetUsersByIDs", mock.Anything, []string{"user-1"}).
-		Return(map[string]*user.User(nil), &serviceerror.ServiceError{Code: "ERR"}).Once()
+	entitySvcMock := entitymock.NewEntityServiceInterfaceMock(t)
+	entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"user-1"}).
+		Return([]entity.Entity(nil), errors.New("entity service error")).Once()
 
 	service := &groupService{
-		userService: userSvcMock,
+		entityService: entitySvcMock,
 	}
 	logger := log.GetLogger()
 
 	members := []Member{
-		{ID: "user-1", Type: MemberTypeUser},
+		{ID: "user-1", Type: memberTypeEntity},
 	}
 
-	service.populateMemberDisplayNames(context.Background(), members, logger)
-	// Falls back to member ID when user service fails.
-	require.Equal(t, "user-1", members[0].Display)
+	// Entity service failure is a hard error.
+	result, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.NotNil(t, svcErr)
+	require.Nil(t, result)
 }
 
 func TestPopulateMemberDisplayNames_EmptyMembers(t *testing.T) {
@@ -2514,8 +2315,9 @@ func TestPopulateMemberDisplayNames_EmptyMembers(t *testing.T) {
 	logger := log.GetLogger()
 
 	var members []Member
-	service.populateMemberDisplayNames(context.Background(), members, logger)
-	// Should not panic.
+	result, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.Nil(t, svcErr)
+	require.Empty(t, result)
 }
 
 func TestPopulateMemberDisplayNames_GroupFallbackToID(t *testing.T) {
@@ -2534,53 +2336,59 @@ func TestPopulateMemberDisplayNames_GroupFallbackToID(t *testing.T) {
 		{ID: "group-1", Type: MemberTypeGroup},
 	}
 
-	service.populateMemberDisplayNames(context.Background(), members, logger)
+	resolved, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.Nil(t, svcErr)
+	require.Len(t, resolved, 1)
 	// Falls back to member ID when group name is empty.
-	require.Equal(t, "group-1", members[0].Display)
+	require.Equal(t, "group-1", resolved[0].Display)
 }
 
 func TestPopulateMemberDisplayNames_SchemaServiceError(t *testing.T) {
-	userSvcMock := usermock.NewUserServiceInterfaceMock(t)
-	userSvcMock.On("GetUsersByIDs", mock.Anything, []string{"user-1"}).
-		Return(map[string]*user.User{
-			"user-1": {
+	entitySvcMock := entitymock.NewEntityServiceInterfaceMock(t)
+	entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"user-1"}).
+		Return([]entity.Entity{
+			{
 				ID:         "user-1",
+				Category:   entity.EntityCategoryUser,
 				Type:       "employee",
 				Attributes: json.RawMessage(`{"name":"Alice"}`),
 			},
-		}, (*serviceerror.ServiceError)(nil)).Once()
+		}, nil).Once()
 
 	schemaMock := userschemamock.NewUserSchemaServiceInterfaceMock(t)
 	schemaMock.On("GetDisplayAttributesByNames", mock.Anything, mock.Anything).
 		Return(map[string]string(nil), &serviceerror.ServiceError{Code: "ERR"}).Once()
 
 	service := &groupService{
-		userService:       userSvcMock,
+		entityService:     entitySvcMock,
 		userSchemaService: schemaMock,
 	}
 	logger := log.GetLogger()
 
 	members := []Member{
-		{ID: "user-1", Type: MemberTypeUser},
+		{ID: "user-1", Type: memberTypeEntity},
 	}
 
-	service.populateMemberDisplayNames(context.Background(), members, logger)
+	resolved, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.Nil(t, svcErr)
+	require.Len(t, resolved, 1)
 	// Falls back to member ID when schema service fails to resolve display attributes.
-	require.Equal(t, "user-1", members[0].Display)
+	require.Equal(t, "user-1", resolved[0].Display)
 }
 
 func TestPopulateMemberDisplayNames_SchemaServiceError_WithGroupMember(t *testing.T) {
 	groupStoreMock := newGroupStoreInterfaceMock(t)
 
-	userSvcMock := usermock.NewUserServiceInterfaceMock(t)
-	userSvcMock.On("GetUsersByIDs", mock.Anything, []string{"user-1"}).
-		Return(map[string]*user.User{
-			"user-1": {
+	entitySvcMock := entitymock.NewEntityServiceInterfaceMock(t)
+	entitySvcMock.On("GetEntitiesByIDs", mock.Anything, []string{"user-1"}).
+		Return([]entity.Entity{
+			{
 				ID:         "user-1",
+				Category:   entity.EntityCategoryUser,
 				Type:       "employee",
 				Attributes: json.RawMessage(`{"name":"Alice"}`),
 			},
-		}, (*serviceerror.ServiceError)(nil)).Once()
+		}, nil).Once()
 
 	schemaMock := userschemamock.NewUserSchemaServiceInterfaceMock(t)
 	schemaMock.On("GetDisplayAttributesByNames", mock.Anything, mock.Anything).
@@ -2591,19 +2399,21 @@ func TestPopulateMemberDisplayNames_SchemaServiceError_WithGroupMember(t *testin
 
 	service := &groupService{
 		groupStore:        groupStoreMock,
-		userService:       userSvcMock,
+		entityService:     entitySvcMock,
 		userSchemaService: schemaMock,
 	}
 	logger := log.GetLogger()
 
 	members := []Member{
-		{ID: "user-1", Type: MemberTypeUser},
+		{ID: "user-1", Type: memberTypeEntity},
 		{ID: "group-1", Type: MemberTypeGroup},
 	}
 
-	service.populateMemberDisplayNames(context.Background(), members, logger)
+	resolved, svcErr := service.resolveMembers(context.Background(), members, true, logger)
+	require.Nil(t, svcErr)
+	require.Len(t, resolved, 2)
 	// User falls back to ID when schema service fails.
-	require.Equal(t, "user-1", members[0].Display)
+	require.Equal(t, "user-1", resolved[0].Display)
 	// Group display still resolved via group name despite schema error (schema only affects users).
-	require.Equal(t, "Engineering", members[1].Display)
+	require.Equal(t, "Engineering", resolved[1].Display)
 }

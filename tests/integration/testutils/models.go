@@ -43,6 +43,7 @@ type User struct {
 // Application represents an application in the system
 type Application struct {
 	ID                        string                   `json:"id,omitempty"`
+	OUID                      string                   `json:"ouId,omitempty"`
 	Name                      string                   `json:"name"`
 	Description               string                   `json:"description"`
 	IsRegistrationFlowEnabled bool                     `json:"isRegistrationFlowEnabled"`
@@ -101,11 +102,16 @@ type UserListResponse struct {
 	Links        []Link `json:"links"`
 }
 
+type I18nMessage struct {
+	Key          string `json:"key,omitempty"`
+	DefaultValue string `json:"defaultValue,omitempty"`
+}
+
 // ErrorResponse represents an error response from the API
 type ErrorResponse struct {
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-	Description string `json:"description"`
+	Code        string      `json:"code"`
+	Message     I18nMessage `json:"message"`
+	Description I18nMessage `json:"description"`
 }
 
 // AuthenticationResponse represents the response from an authentication request
@@ -183,6 +189,7 @@ type ResourceServer struct {
 	ID          string  `json:"id,omitempty"`
 	Name        string  `json:"name"`
 	Description string  `json:"description,omitempty"`
+	Handle      string  `json:"handle,omitempty"`
 	Identifier  string  `json:"identifier,omitempty"`
 	OUID        string  `json:"ouId"`
 	Delimiter   *string `json:"delimiter,omitempty"`
@@ -205,7 +212,7 @@ type ResourcePermissions struct {
 
 // FlowResponse represents the response from flow execution
 type FlowResponse struct {
-	FlowID        string    `json:"flowId"`
+	ExecutionID   string    `json:"executionId"`
 	FlowStatus    string    `json:"flowStatus"`
 	Type          string    `json:"type"`
 	Data          *FlowData `json:"data,omitempty"`
@@ -238,12 +245,13 @@ type FlowAction struct {
 
 // FlowStep represents a single step in a flow execution
 type FlowStep struct {
-	FlowID        string    `json:"flowId"`
-	FlowStatus    string    `json:"flowStatus"`
-	Type          string    `json:"type"`
-	Data          *FlowData `json:"data,omitempty"`
-	Assertion     string    `json:"assertion,omitempty"`
-	FailureReason string    `json:"failureReason,omitempty"`
+	ExecutionID    string    `json:"executionId"`
+	FlowStatus     string    `json:"flowStatus"`
+	Type           string    `json:"type"`
+	Data           *FlowData `json:"data,omitempty"`
+	Assertion      string    `json:"assertion,omitempty"`
+	FailureReason  string    `json:"failureReason,omitempty"`
+	ChallengeToken string    `json:"challengeToken,omitempty"`
 }
 
 // Flow represents a flow definition

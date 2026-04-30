@@ -30,6 +30,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/asgardeo/thunder/internal/system/config"
@@ -44,7 +45,7 @@ import (
 
 // JWTServiceInterface defines the interface for JWT operations.
 type JWTServiceInterface interface {
-	GenerateJWT(sub, aud, iss string, validityPeriod int64, claims map[string]interface{}, typ string) (
+	GenerateJWT(sub, iss string, validityPeriod int64, claims map[string]interface{}, typ, alg string) (
 		string, int64, *serviceerror.ServiceError)
 	VerifyJWT(jwtToken string, expectedAud, expectedIss string) *serviceerror.ServiceError
 	VerifyJWTWithPublicKey(jwtToken string, jwtPublicKey crypto.PublicKey, expectedAud,
@@ -55,6 +56,12 @@ type JWTServiceInterface interface {
 	VerifyJWTSignatureWithJWKS(jwtToken string, jwksURL string) *serviceerror.ServiceError
 }
 
+// jwksCacheEntry holds a cached JWKS response with its expiry time.
+type jwksCacheEntry struct {
+	keys      []map[string]interface{}
+	expiresAt time.Time
+}
+
 // jwtService implements the JWTServiceInterface for generating and managing JWT tokens.
 type jwtService struct {
 	privateKey crypto.PrivateKey
@@ -62,6 +69,7 @@ type jwtService struct {
 	jwsAlg     jws.Algorithm
 	kid        string
 	logger     *log.Logger
+	jwksCache  sync.Map
 }
 
 // newJWTService creates a new JWT service instance.
@@ -130,15 +138,43 @@ func newJWTService(pkiService pki.PKIServiceInterface) (JWTServiceInterface, err
 	}
 }
 
-// GenerateJWT generates a standard JWT signed with the server's private key.
+// GenerateJWT generates a JWT signed with the server's private key.
 // The typ parameter sets the JWT header "typ" field. If empty, defaults to "JWT".
+// The alg parameter overrides the signing algorithm (e.g. "RS256"). When empty, the server's
+// default algorithm is used. When set but incompatible with the server's private key,
+// ErrorUnsupportedJWSAlgorithm is returned.
+// claims["aud"] must be set by the caller as either a string or []string; omitting it
+// or providing another type is a programmer error and returns InternalServerError.
 func (js *jwtService) GenerateJWT(
-	sub, aud, iss string, validityPeriod int64, claims map[string]interface{}, typ string,
+	sub, iss string, validityPeriod int64, claims map[string]interface{}, typ, alg string,
 ) (string, int64, *serviceerror.ServiceError) {
+	jwsAlg := js.jwsAlg
+	if alg != "" {
+		mapped, err := jws.MapAlgorithmToSignAlg(jws.Algorithm(alg))
+		if err != nil || mapped != js.signAlg {
+			return "", 0, &ErrorUnsupportedJWSAlgorithm
+		}
+		jwsAlg = jws.Algorithm(alg)
+	}
 	if js.privateKey == nil {
 		js.logger.Error("Private key not found for JWT generation")
 		return "", 0, &serviceerror.InternalServerError
 	}
+
+	// Validate that claims["aud"] is present and of an accepted type.
+	audValue, hasAud := claims["aud"]
+	if !hasAud {
+		js.logger.Error("GenerateJWT called without aud in claims")
+		return "", 0, &serviceerror.InternalServerError
+	}
+	switch audValue.(type) {
+	case string, []string:
+		// valid
+	default:
+		js.logger.Error("GenerateJWT called with unsupported aud type in claims")
+		return "", 0, &serviceerror.InternalServerError
+	}
+
 	thunderRuntime := config.GetThunderRuntime()
 
 	// Create the JWT header.
@@ -146,7 +182,7 @@ func (js *jwtService) GenerateJWT(
 		typ = TokenTypeJWT
 	}
 	header := map[string]string{
-		"alg": string(js.jwsAlg),
+		"alg": string(jwsAlg),
 		"typ": typ,
 		"kid": js.kid,
 	}
@@ -179,7 +215,6 @@ func (js *jwtService) GenerateJWT(
 	payload := map[string]interface{}{
 		"sub": sub,
 		"iss": tokenIssuer,
-		"aud": aud,
 		"exp": expirationTime,
 		"iat": iat.Unix(),
 		"nbf": iat.Unix(),
@@ -249,7 +284,8 @@ func (js *jwtService) VerifyJWTWithPublicKey(jwtToken string, jwtPublicKey crypt
 }
 
 // VerifyJWTWithJWKS verifies the JWT token using a JWK Set (JWKS) endpoint.
-func (js *jwtService) VerifyJWTWithJWKS(jwtToken, jwksURL, expectedAud, expectedIss string) *serviceerror.ServiceError {
+func (js *jwtService) VerifyJWTWithJWKS(
+	jwtToken, jwksURL, expectedAud, expectedIss string) *serviceerror.ServiceError {
 	parts := strings.Split(jwtToken, ".")
 	if len(parts) != 3 {
 		return &ErrorInvalidJWTFormat
@@ -348,41 +384,15 @@ func (js *jwtService) VerifyJWTSignatureWithJWKS(jwtToken string, jwksURL string
 		return &ErrorDecodingJWTHeader
 	}
 
-	// Fetch the JWK Set from the JWKS endpoint
-	client := httpservice.NewHTTPClientWithTimeout(10 * time.Second)
-	resp, err := client.Get(jwksURL)
-	if err != nil {
-		js.logger.Debug("Failed to fetch JWKS from URL: " + err.Error())
-		return &ErrorFailedToGetJWKS
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			js.logger.Error("Failed to close response body", log.Error(closeErr))
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		js.logger.Debug("Failed to fetch JWKS, HTTP status: " + resp.Status)
-		return &ErrorFailedToGetJWKS
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		js.logger.Debug("Failed to read JWKS response body: " + err.Error())
-		return &ErrorFailedToParseJWKS
-	}
-
-	var jwks struct {
-		Keys []map[string]interface{} `json:"keys"`
-	}
-	if err := json.Unmarshal(body, &jwks); err != nil {
-		js.logger.Debug("Failed to parse JWKS JSON: " + err.Error())
-		return &ErrorFailedToParseJWKS
+	// Get JWKS keys (from cache or fetch)
+	keys, svcErr := js.getJWKSKeys(jwksURL)
+	if svcErr != nil {
+		return svcErr
 	}
 
 	// Find the key with matching kid
 	var jwk map[string]interface{}
-	for _, key := range jwks.Keys {
+	for _, key := range keys {
 		if keyID, ok := key["kid"].(string); ok && keyID == kid {
 			jwk = key
 			break
@@ -405,6 +415,55 @@ func (js *jwtService) VerifyJWTSignatureWithJWKS(jwtToken string, jwksURL string
 	}
 
 	return nil
+}
+
+// getJWKSKeys returns JWKS keys for the given URL, using a TTL-based cache.
+func (js *jwtService) getJWKSKeys(jwksURL string) ([]map[string]interface{}, *serviceerror.ServiceError) {
+	if cached, ok := js.jwksCache.Load(jwksURL); ok {
+		entry := cached.(*jwksCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			return entry.keys, nil
+		}
+	}
+
+	client := httpservice.NewHTTPClientWithTimeout(10 * time.Second)
+	resp, err := client.Get(jwksURL)
+	if err != nil {
+		js.logger.Debug("Failed to fetch JWKS from URL: " + err.Error())
+		return nil, &ErrorFailedToGetJWKS
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			js.logger.Error("Failed to close response body", log.Error(closeErr))
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		js.logger.Debug("Failed to fetch JWKS, HTTP status: " + resp.Status)
+		return nil, &ErrorFailedToGetJWKS
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		js.logger.Debug("Failed to read JWKS response body: " + err.Error())
+		return nil, &ErrorFailedToParseJWKS
+	}
+
+	var jwks struct {
+		Keys []map[string]interface{} `json:"keys"`
+	}
+	if err := json.Unmarshal(body, &jwks); err != nil {
+		js.logger.Debug("Failed to parse JWKS JSON: " + err.Error())
+		return nil, &ErrorFailedToParseJWKS
+	}
+
+	ttl := time.Duration(config.GetThunderRuntime().Config.Server.SecurityConfig.JWKSCacheTTL) * time.Second
+	js.jwksCache.Store(jwksURL, &jwksCacheEntry{
+		keys:      jwks.Keys,
+		expiresAt: time.Now().Add(ttl),
+	})
+
+	return jwks.Keys, nil
 }
 
 // verifyJWTClaims verifies the standard claims of a JWT token.
@@ -432,24 +491,40 @@ func (js *jwtService) verifyJWTClaims(jwtToken string, expectedAud, expectedIss 
 		return &ErrorInvalidJWTFormat
 	}
 
-	if nbf, ok := payload["nbf"].(float64); ok {
+	// Validate nbf only when present. Many OIDC providers omit this claim.
+	if nbfRaw, ok := payload["nbf"]; ok {
+		nbf, isNumber := nbfRaw.(float64)
+		if !isNumber {
+			js.logger.Debug("JWT token 'nbf' claim present but not a number")
+			return &ErrorInvalidJWTFormat
+		}
 		if now < int64(nbf)-leeway {
 			js.logger.Debug("JWT token is not valid yet (nbf claim)")
 			return &ErrorInvalidJWTFormat
 		}
-	} else {
-		js.logger.Debug("JWT token missing 'nbf' claim or it is not a number")
-		return &ErrorInvalidJWTFormat
 	}
 
 	if expectedAud != "" {
-		if aud, ok := payload["aud"].(string); ok {
+		switch aud := payload["aud"].(type) {
+		case string:
 			if aud != expectedAud {
 				js.logger.Debug("Invalid audience: expected " + expectedAud + ", got " + aud)
 				return &ErrorInvalidJWTFormat
 			}
-		} else {
-			js.logger.Debug("Missing 'aud' claim or it is not a string")
+		case []interface{}:
+			found := false
+			for _, v := range aud {
+				if s, ok := v.(string); ok && s == expectedAud {
+					found = true
+					break
+				}
+			}
+			if !found {
+				js.logger.Debug("Invalid audience: expected " + expectedAud + " not found in aud array")
+				return &ErrorInvalidJWTFormat
+			}
+		default:
+			js.logger.Debug("Missing or invalid 'aud' claim")
 			return &ErrorInvalidJWTFormat
 		}
 	}

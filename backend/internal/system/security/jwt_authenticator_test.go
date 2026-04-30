@@ -20,6 +20,8 @@ package security
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,7 +29,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	i18ncore "github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/tests/mocks/jose/jwtmock"
 )
 
@@ -41,10 +45,15 @@ type JWTAuthenticatorTestSuite struct {
 func (suite *JWTAuthenticatorTestSuite) SetupTest() {
 	suite.mockJWT = jwtmock.NewJWTServiceInterfaceMock(suite.T())
 	suite.authenticator = newJWTAuthenticator(suite.mockJWT)
+	// Initialize an empty runtime so verifyFederatedToken sees an unconfigured trusted issuer
+	// and returns false cleanly. Tests that need a specific trusted issuer config override this.
+	config.ResetThunderRuntime()
+	_ = config.InitializeThunderRuntime("", &config.Config{})
 }
 
 func (suite *JWTAuthenticatorTestSuite) TearDownTest() {
 	suite.mockJWT.AssertExpectations(suite.T())
+	config.ResetThunderRuntime()
 }
 
 // Run the test suite
@@ -115,7 +124,7 @@ func (suite *JWTAuthenticatorTestSuite) TestAuthenticate() {
 			name:       "Successful authentication with system scope",
 			authHeader: "Bearer " + validToken,
 			setupMock: func(m *jwtmock.JWTServiceInterfaceMock) {
-				m.On("VerifyJWTSignature", validToken).Return(nil)
+				m.On("VerifyJWT", validToken, "", "").Return(nil)
 			},
 			expectedError: nil,
 			validateResult: func(t *testing.T, ctx *SecurityContext) {
@@ -146,11 +155,24 @@ func (suite *JWTAuthenticatorTestSuite) TestAuthenticate() {
 			name:       "Invalid JWT signature",
 			authHeader: "Bearer invalid.jwt.token",
 			setupMock: func(m *jwtmock.JWTServiceInterfaceMock) {
-				m.On("VerifyJWTSignature", "invalid.jwt.token").Return(&serviceerror.ServiceError{
+				m.On("VerifyJWT", "invalid.jwt.token", "", "").Return(&serviceerror.ServiceError{
 					Type:             serviceerror.ServerErrorType,
 					Code:             "INVALID_SIGNATURE",
-					Error:            "Invalid signature",
-					ErrorDescription: "The JWT signature is invalid",
+					Error:            i18ncore.I18nMessage{DefaultValue: "Invalid signature"},
+					ErrorDescription: i18ncore.I18nMessage{DefaultValue: "The JWT signature is invalid"},
+				})
+			},
+			expectedError: errInvalidToken,
+		},
+		{
+			name:       "Expired JWT token",
+			authHeader: "Bearer expired.jwt.token",
+			setupMock: func(m *jwtmock.JWTServiceInterfaceMock) {
+				m.On("VerifyJWT", "expired.jwt.token", "", "").Return(&serviceerror.ServiceError{
+					Type:             serviceerror.ClientErrorType,
+					Code:             "JWT-60005",
+					Error:            i18ncore.I18nMessage{DefaultValue: "Token has expired"},
+					ErrorDescription: i18ncore.I18nMessage{DefaultValue: "The JWT token has expired"},
 				})
 			},
 			expectedError: errInvalidToken,
@@ -159,7 +181,7 @@ func (suite *JWTAuthenticatorTestSuite) TestAuthenticate() {
 			name:       "Invalid JWT format - decoding error",
 			authHeader: "Bearer invalidjwtformat", // Not 3 parts separated by dots
 			setupMock: func(m *jwtmock.JWTServiceInterfaceMock) {
-				m.On("VerifyJWTSignature", "invalidjwtformat").Return(nil)
+				m.On("VerifyJWT", "invalidjwtformat", "", "").Return(nil)
 			},
 			expectedError: errInvalidToken,
 		},
@@ -167,7 +189,7 @@ func (suite *JWTAuthenticatorTestSuite) TestAuthenticate() {
 			name:       "Invalid JWT payload - malformed base64",
 			authHeader: "Bearer eyJhbGciOiJIUzI1NiJ9.invalid!base64!payload.signature",
 			setupMock: func(m *jwtmock.JWTServiceInterfaceMock) {
-				m.On("VerifyJWTSignature", "eyJhbGciOiJIUzI1NiJ9.invalid!base64!payload.signature").Return(nil)
+				m.On("VerifyJWT", "eyJhbGciOiJIUzI1NiJ9.invalid!base64!payload.signature", "", "").Return(nil)
 			},
 			expectedError: errInvalidToken,
 		},
@@ -175,7 +197,7 @@ func (suite *JWTAuthenticatorTestSuite) TestAuthenticate() {
 			name:       "Invalid JWT payload - malformed JSON",
 			authHeader: "Bearer eyJhbGciOiJIUzI1NiJ9.bm90X3ZhbGlkX2pzb24.signature", // "not_valid_json" base64 encoded
 			setupMock: func(m *jwtmock.JWTServiceInterfaceMock) {
-				m.On("VerifyJWTSignature", "eyJhbGciOiJIUzI1NiJ9.bm90X3ZhbGlkX2pzb24.signature").Return(nil)
+				m.On("VerifyJWT", "eyJhbGciOiJIUzI1NiJ9.bm90X3ZhbGlkX2pzb24.signature", "", "").Return(nil)
 			},
 			expectedError: errInvalidToken,
 		},
@@ -430,4 +452,394 @@ func (suite *JWTAuthenticatorTestSuite) TestCanHandle_EdgeCases() {
 			assert.Equal(suite.T(), tt.expectedResult, result)
 		})
 	}
+}
+
+const (
+	testFederatedIssuer      = "https://external-auth:8090"
+	testFederatedJWKSURL     = "https://external-auth:8090/oauth2/jwks"
+	testFederatedAudience    = "FEDERATED_CONSOLE"
+	testResourceServerAudURL = "https://resource-server:9443"
+)
+
+// buildFakeJWT creates a fake JWT string with the given header and payload claims.
+func buildFakeJWT(header, payload map[string]interface{}) string {
+	headerJSON, _ := json.Marshal(header)
+	payloadJSON, _ := json.Marshal(payload)
+	h := base64.RawURLEncoding.EncodeToString(headerJSON)
+	p := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	return h + "." + p + ".fakesignature"
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestVerifyFederatedToken_Disabled() {
+	config.ResetThunderRuntime()
+	defer config.ResetThunderRuntime()
+
+	cfg := &config.Config{}
+	_ = config.InitializeThunderRuntime("", cfg)
+
+	token := buildFakeJWT(
+		map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+		map[string]interface{}{"sub": "user1", "iss": testFederatedIssuer},
+	)
+
+	result := suite.authenticator.verifyFederatedToken(token)
+	assert.False(suite.T(), result)
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestVerifyFederatedToken_IssuerMismatch() {
+	config.ResetThunderRuntime()
+	defer config.ResetThunderRuntime()
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			SecurityConfig: config.SecurityConfig{
+				TrustedIssuer: config.TrustedIssuerConfig{
+					Issuer:   "https://expected-auth:8090",
+					JWKSURL:  "https://expected-auth:8090/oauth2/jwks",
+					Audience: testFederatedAudience,
+				},
+			},
+		},
+	}
+	_ = config.InitializeThunderRuntime("", cfg)
+
+	token := buildFakeJWT(
+		map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+		map[string]interface{}{"sub": "user1", "iss": "https://wrong-auth:8090"},
+	)
+
+	result := suite.authenticator.verifyFederatedToken(token)
+	assert.False(suite.T(), result)
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestVerifyFederatedToken_JWKSVerificationSuccess() {
+	config.ResetThunderRuntime()
+	defer config.ResetThunderRuntime()
+
+	issuer := testFederatedIssuer
+	jwksURL := testFederatedJWKSURL
+	audience := testFederatedAudience
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			SecurityConfig: config.SecurityConfig{
+				TrustedIssuer: config.TrustedIssuerConfig{
+					Issuer:   issuer,
+					JWKSURL:  jwksURL,
+					Audience: audience,
+				},
+			},
+		},
+	}
+	_ = config.InitializeThunderRuntime("", cfg)
+
+	token := buildFakeJWT(
+		map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+		map[string]interface{}{"sub": "user1", "iss": issuer},
+	)
+
+	mockJWT := jwtmock.NewJWTServiceInterfaceMock(suite.T())
+	mockJWT.On("VerifyJWTWithJWKS", token, jwksURL, audience, issuer).Return(nil)
+	auth := newJWTAuthenticator(mockJWT)
+
+	result := auth.verifyFederatedToken(token)
+	assert.True(suite.T(), result)
+	mockJWT.AssertExpectations(suite.T())
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestVerifyFederatedToken_JWKSVerificationFailure() {
+	config.ResetThunderRuntime()
+	defer config.ResetThunderRuntime()
+
+	issuer := testFederatedIssuer
+	jwksURL := testFederatedJWKSURL
+	audience := testFederatedAudience
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			SecurityConfig: config.SecurityConfig{
+				TrustedIssuer: config.TrustedIssuerConfig{
+					Issuer:   issuer,
+					JWKSURL:  jwksURL,
+					Audience: audience,
+				},
+			},
+		},
+	}
+	_ = config.InitializeThunderRuntime("", cfg)
+
+	token := buildFakeJWT(
+		map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+		map[string]interface{}{"sub": "user1", "iss": issuer},
+	)
+
+	mockJWT := jwtmock.NewJWTServiceInterfaceMock(suite.T())
+	mockJWT.On("VerifyJWTWithJWKS", token, jwksURL, audience, issuer).Return(&serviceerror.ServiceError{
+		Type:  serviceerror.ServerErrorType,
+		Code:  "JWKS_ERROR",
+		Error: i18ncore.I18nMessage{DefaultValue: "JWKS verification failed"},
+	})
+	auth := newJWTAuthenticator(mockJWT)
+
+	result := auth.verifyFederatedToken(token)
+	assert.False(suite.T(), result)
+	mockJWT.AssertExpectations(suite.T())
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestVerifyFederatedToken_RequiredClaims() {
+	issuer := testFederatedIssuer
+	jwksURL := testFederatedJWKSURL
+	audience := testResourceServerAudURL
+
+	tests := []struct {
+		name           string
+		requiredClaims []config.RequiredClaim
+		payloadClaims  map[string]interface{}
+		expectedResult bool
+	}{
+		{
+			name:           "RequiredClaimsMatch",
+			requiredClaims: []config.RequiredClaim{{Claim: "ouId", Value: "tenant-org-1"}},
+			payloadClaims:  map[string]interface{}{"sub": "user1", "iss": issuer, "ouId": "tenant-org-1"},
+			expectedResult: true,
+		},
+		{
+			name:           "RequiredClaimMismatch",
+			requiredClaims: []config.RequiredClaim{{Claim: "ouId", Value: "tenant-org-1"}},
+			payloadClaims:  map[string]interface{}{"sub": "user1", "iss": issuer, "ouId": "wrong-org"},
+			expectedResult: false,
+		},
+		{
+			name:           "RequiredClaimMissing",
+			requiredClaims: []config.RequiredClaim{{Claim: "ouId", Value: "tenant-org-1"}},
+			payloadClaims:  map[string]interface{}{"sub": "user1", "iss": issuer},
+			expectedResult: false,
+		},
+		{
+			name: "MultipleRequiredClaimsAllMatch",
+			requiredClaims: []config.RequiredClaim{
+				{Claim: "ouId", Value: "tenant-org-1"},
+				{Claim: "access_tier", Value: "admin"},
+			},
+			payloadClaims: map[string]interface{}{
+				"sub": "user1", "iss": issuer, "ouId": "tenant-org-1", "access_tier": "admin",
+			},
+			expectedResult: true,
+		},
+		{
+			name: "MultipleRequiredClaimsOneFails",
+			requiredClaims: []config.RequiredClaim{
+				{Claim: "ouId", Value: "tenant-org-1"},
+				{Claim: "access_tier", Value: "admin"},
+			},
+			payloadClaims: map[string]interface{}{
+				"sub": "user1", "iss": issuer, "ouId": "tenant-org-1", "access_tier": "viewer",
+			},
+			expectedResult: false,
+		},
+		{
+			name:           "NoRequiredClaims",
+			requiredClaims: nil,
+			payloadClaims:  map[string]interface{}{"sub": "user1", "iss": issuer},
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			config.ResetThunderRuntime()
+			defer config.ResetThunderRuntime()
+
+			cfg := &config.Config{
+				Server: config.ServerConfig{
+					SecurityConfig: config.SecurityConfig{
+						TrustedIssuer: config.TrustedIssuerConfig{
+							Issuer:         issuer,
+							JWKSURL:        jwksURL,
+							Audience:       audience,
+							RequiredClaims: tc.requiredClaims,
+						},
+					},
+				},
+			}
+			_ = config.InitializeThunderRuntime("", cfg)
+
+			token := buildFakeJWT(
+				map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+				tc.payloadClaims,
+			)
+
+			mockJWT := jwtmock.NewJWTServiceInterfaceMock(suite.T())
+			mockJWT.On("VerifyJWTWithJWKS", token, jwksURL, audience, issuer).Return(nil)
+			auth := newJWTAuthenticator(mockJWT)
+
+			result := auth.verifyFederatedToken(token)
+			assert.Equal(suite.T(), tc.expectedResult, result)
+			mockJWT.AssertExpectations(suite.T())
+		})
+	}
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestVerifyFederatedToken_InvalidPayload() {
+	// When the trusted issuer is configured but the bearer token is malformed in any
+	// way that causes DecodeJWTPayload to fail, verifyFederatedToken must short-circuit
+	// to false without ever calling the JWKS verifier. We exercise every distinct
+	// failure mode of DecodeJWTPayload (wrong number of parts, undecodable base64,
+	// non-JSON payload) so a regression that handles one case but misses another is
+	// caught.
+	validHeaderB64 := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","kid":"test-kid"}`))
+	validPayloadB64 := base64.RawURLEncoding.EncodeToString(
+		[]byte(`{"iss":"` + testFederatedIssuer + `","sub":"user1"}`))
+
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{
+			// fewer than 3 dot-separated parts → "invalid JWT format"
+			name:  "TwoParts",
+			token: validHeaderB64 + "." + validPayloadB64,
+		},
+		{
+			// empty string → 1 part → "invalid JWT format"
+			name:  "EmptyString",
+			token: "",
+		},
+		{
+			// payload segment is not valid base64url → "failed to decode JWT payload"
+			name:  "InvalidBase64Payload",
+			token: validHeaderB64 + ".not!valid!base64." + "fakesignature",
+		},
+		{
+			// payload decodes to bytes that aren't valid JSON → "failed to unmarshal JWT claims"
+			name:  "PayloadNotJSON",
+			token: validHeaderB64 + "." + base64.RawURLEncoding.EncodeToString([]byte("not-json")) + ".fakesignature",
+		},
+	}
+
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			config.ResetThunderRuntime()
+			defer config.ResetThunderRuntime()
+
+			cfg := &config.Config{
+				Server: config.ServerConfig{
+					SecurityConfig: config.SecurityConfig{
+						TrustedIssuer: config.TrustedIssuerConfig{
+							Issuer:   testFederatedIssuer,
+							JWKSURL:  testFederatedJWKSURL,
+							Audience: testFederatedAudience,
+						},
+					},
+				},
+			}
+			_ = config.InitializeThunderRuntime("", cfg)
+
+			mockJWT := jwtmock.NewJWTServiceInterfaceMock(suite.T())
+			auth := newJWTAuthenticator(mockJWT)
+
+			result := auth.verifyFederatedToken(tc.token)
+			assert.False(suite.T(), result, "malformed token must not verify")
+			mockJWT.AssertNotCalled(suite.T(), "VerifyJWTWithJWKS")
+		})
+	}
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestAuthenticate_FederatedTokenFailure() {
+	// When the trusted issuer is configured and federated verification fails
+	// (here, JWKS verification returns an error), Authenticate must reject the
+	// request with errInvalidToken and must NOT fall back to local-key verification.
+	config.ResetThunderRuntime()
+	defer config.ResetThunderRuntime()
+
+	issuer := testFederatedIssuer
+	jwksURL := testFederatedJWKSURL
+	audience := testFederatedAudience
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			SecurityConfig: config.SecurityConfig{
+				TrustedIssuer: config.TrustedIssuerConfig{
+					Issuer:   issuer,
+					JWKSURL:  jwksURL,
+					Audience: audience,
+				},
+			},
+		},
+	}
+	_ = config.InitializeThunderRuntime("", cfg)
+
+	token := buildFakeJWT(
+		map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+		map[string]interface{}{
+			"sub":   "federated-user",
+			"iss":   issuer,
+			"scope": "openid system",
+		},
+	)
+
+	mockJWT := jwtmock.NewJWTServiceInterfaceMock(suite.T())
+	mockJWT.On("VerifyJWTWithJWKS", token, jwksURL, audience, issuer).Return(&serviceerror.ServiceError{
+		Type:  serviceerror.ServerErrorType,
+		Code:  "JWKS_ERROR",
+		Error: i18ncore.I18nMessage{DefaultValue: "JWKS verification failed"},
+	})
+	auth := newJWTAuthenticator(mockJWT)
+
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	authCtx, err := auth.Authenticate(req)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), authCtx)
+	mockJWT.AssertExpectations(suite.T())
+	mockJWT.AssertNotCalled(suite.T(), "VerifyJWTSignature")
+}
+
+func (suite *JWTAuthenticatorTestSuite) TestAuthenticate_FederatedTokenSuccess() {
+	config.ResetThunderRuntime()
+	defer config.ResetThunderRuntime()
+
+	issuer := testFederatedIssuer
+	jwksURL := testFederatedJWKSURL
+	audience := testFederatedAudience
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			SecurityConfig: config.SecurityConfig{
+				TrustedIssuer: config.TrustedIssuerConfig{
+					Issuer:   issuer,
+					JWKSURL:  jwksURL,
+					Audience: audience,
+				},
+			},
+		},
+	}
+	_ = config.InitializeThunderRuntime("", cfg)
+
+	token := buildFakeJWT(
+		map[string]interface{}{"alg": "RS256", "kid": "test-kid"},
+		map[string]interface{}{
+			"sub":   "federated-user",
+			"iss":   issuer,
+			"scope": "openid system",
+		},
+	)
+
+	mockJWT := jwtmock.NewJWTServiceInterfaceMock(suite.T())
+	// When trusted issuer is configured, the local-key path is skipped entirely.
+	mockJWT.On("VerifyJWTWithJWKS", token, jwksURL, audience, issuer).Return(nil)
+	auth := newJWTAuthenticator(mockJWT)
+
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	authCtx, err := auth.Authenticate(req)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), authCtx)
+
+	baseCtx := withSecurityContext(context.Background(), authCtx)
+	assert.Equal(suite.T(), "federated-user", GetSubject(baseCtx))
+	mockJWT.AssertExpectations(suite.T())
+	mockJWT.AssertNotCalled(suite.T(), "VerifyJWTSignature")
 }

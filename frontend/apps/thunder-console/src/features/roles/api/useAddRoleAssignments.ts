@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import RoleQueryKeys from '../constants/role-query-keys';
 import type {RoleAssignment} from '../models/role';
@@ -47,7 +47,7 @@ export default function useAddRoleAssignments(): UseMutationResult<void, Error, 
         url: `${serverUrl}/roles/${roleId}/assignments/add`,
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        data: JSON.stringify({assignments}),
+        data: {assignments},
       } as unknown as Parameters<typeof http.request>[0]);
     },
     onSuccess: (_data, {roleId}) => {

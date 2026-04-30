@@ -25,9 +25,11 @@ import {
   AuthPageLayout,
   AuthCardLayout,
   GoogleFontLoader,
-} from '@thunder/shared-design';
-import type {Theme, DesignResolveResponse, Stylesheet} from '@thunder/shared-design';
-import {useTemplateLiteralResolver} from '@thunder/shared-hooks';
+  type Theme,
+  type DesignResolveResponse,
+  type Stylesheet,
+} from '@thunder/design';
+import {useTemplateLiteralResolver} from '@thunder/hooks';
 import {TemplateLiteralType} from '@thunder/utils';
 import {Box} from '@wso2/oxygen-ui';
 import {useEffect, useMemo, type JSX} from 'react';
@@ -36,7 +38,7 @@ import ElementInspector from '../../features/design/components/layouts/ElementIn
 
 /**
  * MUI's extendTheme only accepts 'light' or 'dark' for defaultColorScheme.
- * Thunder stores 'system' as a runtime concept — strip it before passing to MUI.
+ * Product stores 'system' as a runtime concept — strip it before passing to MUI.
  */
 function sanitizeThemeForMui(theme: Theme): Theme {
   const raw = theme as unknown as Record<string, unknown>;
@@ -104,7 +106,7 @@ export default function IframeContent({
     const injectedIds: string[] = [];
 
     parsed.forEach((sheet) => {
-      const elementId = `thunder-preview-${sheet.id}`;
+      const elementId = `gate-preview-${sheet.id}`;
       iframeDoc.getElementById(elementId)?.remove();
 
       if (sheet.disabled) return;
@@ -145,7 +147,7 @@ export default function IframeContent({
       >
         <PreviewThemeProvider colorScheme={colorScheme} colorSchemeNode={iframeDoc.documentElement}>
           <ElementInspector enabled={inspectorEnabled} onSelectSelector={onSelectSelector}>
-            <AuthPageLayout variant="SignIn" background={pageBackground}>
+            <AuthPageLayout isLoading={false} variant="SignIn" background={pageBackground}>
               <AuthCardLayout variant="SignInBox" showLogo={false}>
                 <Box sx={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2}}>
                   {mock.map((component, index) => (

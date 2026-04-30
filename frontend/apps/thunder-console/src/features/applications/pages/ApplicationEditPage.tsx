@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import {ResourceAvatar, UnsavedChangesBar} from '@thunder/components';
 import {useLogger} from '@thunder/logger/react';
 import {
   Box,
@@ -36,9 +37,6 @@ import {ArrowLeft, Edit} from '@wso2/oxygen-ui-icons-react';
 import {useState, useCallback, useMemo, type SyntheticEvent} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Link, useNavigate, useParams} from 'react-router';
-import CopyableId from '../../../components/CopyableId';
-import ResourceAvatar from '../../../components/ResourceAvatar';
-import UnsavedChangesBar from '../../../components/UnsavedChangesBar';
 import useGetApplication from '../api/useGetApplication';
 import useUpdateApplication from '../api/useUpdateApplication';
 import EditAdvancedSettings from '../components/edit-application/advanced-settings/EditAdvancedSettings';
@@ -89,6 +87,7 @@ export default function ApplicationEditPage() {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [tempName, setTempName] = useState('');
   const [tempDescription, setTempDescription] = useState('');
+  const [hasValidationErrors, setHasValidationErrors] = useState(false);
 
   const handleBack = async () => {
     await navigate('/applications');
@@ -332,12 +331,6 @@ export default function ApplicationEditPage() {
                 </Box>
               ) : null;
             })()}
-
-          {/* Application ID */}
-          <CopyableId
-            value={application.id}
-            copyLabel={t('applications:edit.page.copyApplicationId', 'Copy Application ID')}
-          />
         </PageTitle.SubHeader>
       </PageTitle>
 
@@ -401,6 +394,9 @@ export default function ApplicationEditPage() {
             oauth2Config={oauth2Config}
             copiedField={copiedField}
             onCopyToClipboard={handleCopyToClipboard}
+            onDeleteSuccess={() => {
+              handleBack().catch(() => null);
+            }}
           />
         </TabPanel>
 
@@ -420,7 +416,12 @@ export default function ApplicationEditPage() {
 
         {/* Token Tab */}
         <TabPanel value={activeTab} index={hasIntegrationGuides ? 4 : 3}>
-          <EditTokenSettings application={application} oauth2Config={oauth2Config} onFieldChange={handleFieldChange} />
+          <EditTokenSettings
+            application={application}
+            oauth2Config={oauth2Config}
+            onFieldChange={handleFieldChange}
+            onValidationChange={setHasValidationErrors}
+          />
         </TabPanel>
 
         {/* Advanced Settings Tab */}
@@ -443,6 +444,7 @@ export default function ApplicationEditPage() {
           saveLabel={t('applications:edit.page.save')}
           savingLabel={t('applications:edit.page.saving')}
           isSaving={updateApplication.isPending}
+          saveDisabled={hasValidationErrors}
           onReset={() => setEditedApp({})}
           onSave={() => {
             handleSave().catch(() => null);

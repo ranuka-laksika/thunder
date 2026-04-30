@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {getErrorMessage} from '@thunder/utils';
 import {useTranslation} from 'react-i18next';
 import ApplicationQueryKeys from '../constants/application-query-keys';
@@ -26,7 +26,7 @@ import type {Application} from '../models/application';
 import type {CreateApplicationRequest} from '../models/requests';
 
 /**
- * Custom React hook to create a new application in the Thunder server.
+ * Custom React hook to create a new application in the server.
  *
  * This hook uses TanStack Query mutations to handle the application creation process,
  * providing loading states, error handling, and automatic cache invalidation. Upon
@@ -79,7 +79,7 @@ export default function useCreateApplication(): UseMutationResult<Application, E
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify(applicationData),
+        data: applicationData,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

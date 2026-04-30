@@ -21,9 +21,9 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import type {Role} from '../../../../models/role';
 import EditGeneralSettings from '../EditGeneralSettings';
 
-// Mock SettingsCard
-vi.mock('@/components/SettingsCard', () => ({
-  default: ({title, description, children}: {title: string; description: string; children: React.ReactNode}) => (
+// Mock Components
+vi.mock('@thunder/components', () => ({
+  SettingsCard: ({title, description, children}: {title: string; description: string; children: React.ReactNode}) => (
     <div data-testid="settings-card">
       <h3>{title}</h3>
       <p>{description}</p>
@@ -35,11 +35,14 @@ vi.mock('@/components/SettingsCard', () => ({
 // Mock translations
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, fallback?: string) => {
       const translations: Record<string, string> = {
         'roles:edit.general.sections.organizationUnit.title': 'Organization Unit',
         'roles:edit.general.sections.organizationUnit.description': 'The organization unit this role belongs to.',
+        'roles:edit.general.sections.organizationUnit.idLabel': 'ID',
+        'roles:edit.general.sections.organizationUnit.handleLabel': 'Handle',
         'roles:edit.general.sections.organizationUnit.copyId': 'Copy Organization Unit ID',
+        'roles:edit.general.sections.organizationUnit.copyHandle': 'Copy handle',
         'roles:edit.general.sections.dangerZone.title': 'Danger Zone',
         'roles:edit.general.sections.dangerZone.description':
           'Actions in this section are irreversible. Proceed with caution.',
@@ -49,7 +52,7 @@ vi.mock('react-i18next', () => ({
         'common:actions.delete': 'Delete',
         'common:actions.copied': 'Copied',
       };
-      return translations[key] || key;
+      return translations[key] ?? fallback ?? key;
     },
   }),
 }));
@@ -126,5 +129,46 @@ describe('EditGeneralSettings', () => {
     render(<EditGeneralSettings {...defaultProps} />);
 
     expect(screen.getByText('Deleting this role is permanent and cannot be undone.')).toBeInTheDocument();
+  });
+
+  it('should render Handle field and ID field when role has ouHandle', () => {
+    const roleWithHandle: Role = {...mockRole, ouHandle: 'default'};
+    render(<EditGeneralSettings role={roleWithHandle} onDeleteClick={mockOnDeleteClick} />);
+
+    expect(screen.getByDisplayValue('default')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('ou-test-123')).toBeInTheDocument();
+  });
+
+  it('should not render Handle field when role has no ouHandle', () => {
+    render(<EditGeneralSettings {...defaultProps} />);
+
+    expect(screen.queryByLabelText('Handle')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('ou-test-123')).toBeInTheDocument();
+  });
+
+  it('should copy ouHandle to clipboard when copy handle button is clicked', async () => {
+    const roleWithHandle: Role = {...mockRole, ouHandle: 'default'};
+    render(<EditGeneralSettings role={roleWithHandle} onDeleteClick={mockOnDeleteClick} />);
+
+    const copyButton = screen.getByRole('button', {name: 'Copy handle'});
+    fireEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledWith('default');
+    });
+  });
+
+  it('should not toggle ID copy icon when handle copy button is clicked', async () => {
+    const roleWithHandle: Role = {...mockRole, ouHandle: 'default'};
+    render(<EditGeneralSettings role={roleWithHandle} onDeleteClick={mockOnDeleteClick} />);
+
+    const copyHandleButton = screen.getByRole('button', {name: 'Copy handle'});
+    fireEvent.click(copyHandleButton);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledWith('default');
+    });
+
+    expect(screen.getByRole('button', {name: 'Copy Organization Unit ID'})).toBeInTheDocument();
   });
 });

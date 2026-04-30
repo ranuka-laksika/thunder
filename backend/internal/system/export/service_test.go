@@ -29,6 +29,7 @@ import (
 	flowcommon "github.com/asgardeo/thunder/internal/flow/common"
 	flowmgt "github.com/asgardeo/thunder/internal/flow/mgt"
 	"github.com/asgardeo/thunder/internal/idp"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/notification"
 	"github.com/asgardeo/thunder/internal/notification/common"
 	oauth2const "github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
@@ -36,6 +37,7 @@ import (
 	"github.com/asgardeo/thunder/internal/system/config"
 	declarativeresource "github.com/asgardeo/thunder/internal/system/declarative_resource"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	i18ncore "github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/internal/userschema"
 	"github.com/asgardeo/thunder/tests/mocks/applicationmock"
 	"github.com/asgardeo/thunder/tests/mocks/flow/flowmgtmock"
@@ -128,7 +130,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_NilRequest() {
 	assert.Nil(suite.T(), result)
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), ErrorInvalidRequest.Code, err.Code)
-	assert.Equal(suite.T(), "Invalid export request", err.Error)
+	assert.Equal(suite.T(), "Invalid export request", err.Error.DefaultValue)
 }
 
 // TestExportResources_EmptyRequest tests ExportResources with empty request.
@@ -140,7 +142,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_EmptyRequest() {
 	assert.Nil(suite.T(), result)
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), ErrorNoResourcesFound.Code, err.Code)
-	assert.Equal(suite.T(), "No resources found", err.Error)
+	assert.Equal(suite.T(), "No resources found", err.Error.DefaultValue)
 }
 
 // TestExportResources_DefaultOptions tests ExportResources with default options.
@@ -163,8 +165,20 @@ func (suite *ExportServiceTestSuite) TestExportResources_DefaultOptions() {
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 1)
+	assert.Nil(suite.T(), result.EnvFile)
 	assert.Equal(suite.T(), 1, result.Summary.TotalFiles)
 	assert.Contains(suite.T(), result.Summary.ResourceTypes, "application")
+	assert.Contains(suite.T(), result.Files[0].Content, "# resource_type: application")
+}
+
+func (suite *ExportServiceTestSuite) TestAddResourceTypeComment() {
+	content := "name: sample\n"
+	annotated := addResourceTypeComment(content, "application")
+
+	assert.Equal(suite.T(), "# resource_type: application\nname: sample\n", annotated)
+
+	annotatedAgain := addResourceTypeComment(annotated, "application")
+	assert.Equal(suite.T(), annotated, annotatedAgain)
 }
 
 // TestExportResources_ApplicationNotFound tests ExportResources when application is not found.
@@ -179,7 +193,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_ApplicationNotFound() {
 
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplication(mock.Anything, appID).Return(nil, appError)
@@ -214,12 +228,12 @@ func (suite *ExportServiceTestSuite) TestExportResources_CompleteOAuthApplicatio
 		PKCERequired:            true,
 		PublicClient:            false,
 		Scopes:                  []string{"openid", "profile"},
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{
 				ValidityPeriod: 3600,
 				UserAttributes: []string{"email", "username"},
 			},
-			IDToken: &appmodel.IDTokenConfig{
+			IDToken: &inboundmodel.IDTokenConfig{
 				ValidityPeriod: 1800,
 				UserAttributes: []string{"email"},
 			},
@@ -240,7 +254,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_CompleteOAuthApplicatio
 				OAuthAppConfig: mockOAuthConfig,
 			},
 		},
-		Assertion: &appmodel.AssertionConfig{
+		Assertion: &inboundmodel.AssertionConfig{
 			UserAttributes: []string{"email", "username"},
 		},
 	}
@@ -261,6 +275,11 @@ func (suite *ExportServiceTestSuite) TestExportResources_CompleteOAuthApplicatio
 	assert.Contains(suite.T(), file.Content, "client_secret: {{.O_AUTH_TEST_APP_CLIENT_SECRET}}")
 	assert.Contains(suite.T(), file.Content, "redirect_uris:")
 	assert.Contains(suite.T(), file.Content, "{{- range .O_AUTH_TEST_APP_REDIRECT_URIS}}")
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), ".env", result.EnvFile.FileName)
+	assert.Contains(suite.T(), result.EnvFile.Content, "O_AUTH_TEST_APP_CLIENT_ID=\n")
+	assert.Contains(suite.T(), result.EnvFile.Content, "O_AUTH_TEST_APP_CLIENT_SECRET=\n")
+	assert.Contains(suite.T(), result.EnvFile.Content, "O_AUTH_TEST_APP_REDIRECT_URIS=\n")
 
 	assert.Equal(suite.T(), 1, result.Summary.ResourceTypes["application"])
 	assert.Equal(suite.T(), int64(len(file.Content)), file.Size)
@@ -317,7 +336,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_PartialFailure() {
 
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplication(mock.Anything, app1ID).Return(mockApp1, nil)
@@ -398,7 +417,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_WildcardApplications_Li
 
 	listError := &serviceerror.ServiceError{
 		Code:  "LIST_FAILED",
-		Error: "Failed to list applications",
+		Error: i18ncore.I18nMessage{DefaultValue: "Failed to list applications"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplicationList(mock.Anything).Return(nil, listError)
@@ -469,7 +488,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_WildcardApplications_Pa
 
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplicationList(mock.Anything).Return(mockAppList, nil)
@@ -515,7 +534,8 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_Succes
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 1)
-	assert.Equal(suite.T(), 1, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
 	assert.Contains(suite.T(), result.Summary.ResourceTypes, "identity_provider")
 	assert.Equal(suite.T(), "Test_IDP.yaml", result.Files[0].FileName)
 	assert.Equal(suite.T(), "identity_provider", result.Files[0].ResourceType)
@@ -592,7 +612,8 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_Wildca
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2)
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 }
 
 // TestExportResources_Mixed_ApplicationsAndIDPs tests exporting both applications and IDPs.
@@ -627,7 +648,8 @@ func (suite *ExportServiceTestSuite) TestExportResources_Mixed_ApplicationsAndID
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2) // 1 app + 1 IDP
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 	assert.Contains(suite.T(), result.Summary.ResourceTypes, "application")
 	assert.Contains(suite.T(), result.Summary.ResourceTypes, "identity_provider")
 	assert.Equal(suite.T(), 1, result.Summary.ResourceTypes["application"])
@@ -645,7 +667,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_NotFou
 
 	idpError := &serviceerror.ServiceError{
 		Code:  "IDP_NOT_FOUND",
-		Error: "Identity provider not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Identity provider not found"},
 	}
 
 	suite.idpServiceMock.EXPECT().GetIdentityProvider(mock.Anything, "non-existent-idp").Return(nil, idpError)
@@ -691,7 +713,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_Wildca
 
 	idpError := &serviceerror.ServiceError{
 		Code:  "IDP_NOT_FOUND",
-		Error: "Identity provider not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Identity provider not found"},
 	}
 
 	suite.idpServiceMock.EXPECT().GetIdentityProviderList(mock.Anything).Return(mockIDPList, nil)
@@ -704,7 +726,8 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_Wildca
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2) // 2 successful exports
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 	assert.Equal(suite.T(), 2, result.Summary.ResourceTypes["identity_provider"])
 	assert.Len(suite.T(), result.Summary.Errors, 1) // One error recorded
 	assert.Equal(suite.T(), "identity_provider", result.Summary.Errors[0].ResourceType)
@@ -914,7 +937,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_PartialFailure_Detailed
 
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplication(mock.Anything, app1ID).Return(mockApp1, nil)
@@ -968,7 +991,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_Partia
 
 	idpError := &serviceerror.ServiceError{
 		Code:  "IDP_NOT_FOUND",
-		Error: "Identity provider not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Identity provider not found"},
 	}
 
 	suite.idpServiceMock.EXPECT().GetIdentityProvider(mock.Anything, "idp1").Return(mockIDP1, nil)
@@ -981,7 +1004,8 @@ func (suite *ExportServiceTestSuite) TestExportResources_IdentityProvider_Partia
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2) // Two successful exports
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 
 	// Verify error details
 	assert.Len(suite.T(), result.Summary.Errors, 1)
@@ -1017,7 +1041,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_MixedResources_WithErro
 	// Setup app error
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	// Setup successful IDP
@@ -1032,7 +1056,7 @@ func (suite *ExportServiceTestSuite) TestExportResources_MixedResources_WithErro
 	// Setup IDP error
 	idpError := &serviceerror.ServiceError{
 		Code:  "IDP_NOT_FOUND",
-		Error: "Identity provider not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Identity provider not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplication(mock.Anything, "app1").Return(mockApp1, nil)
@@ -1046,7 +1070,8 @@ func (suite *ExportServiceTestSuite) TestExportResources_MixedResources_WithErro
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2) // One app + one IDP
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 
 	// Verify resource type counts
 	assert.Equal(suite.T(), 1, result.Summary.ResourceTypes["application"])
@@ -1296,7 +1321,8 @@ func (suite *ExportServiceTestSuite) TestExportNotificationSenders_Success() {
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 1)
-	assert.Equal(suite.T(), 1, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
 	assert.Contains(suite.T(), result.Summary.ResourceTypes, "notification_sender")
 	assert.Equal(suite.T(), "Test_Sender.yaml", result.Files[0].FileName)
 	assert.Equal(suite.T(), "notification_sender", result.Files[0].ResourceType)
@@ -1370,7 +1396,8 @@ func (suite *ExportServiceTestSuite) TestExportNotificationSenders_Wildcard() {
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2)
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 }
 
 // TestExportNotificationSenders_NotFound tests error handling when sender not found.
@@ -1384,7 +1411,7 @@ func (suite *ExportServiceTestSuite) TestExportNotificationSenders_NotFound() {
 
 	senderError := &serviceerror.ServiceError{
 		Code:  "SENDER_NOT_FOUND",
-		Error: "Notification sender not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Notification sender not found"},
 	}
 
 	suite.mockNotificationService.EXPECT().GetSender(mock.Anything, "non-existent-sender").Return(nil, senderError)
@@ -1480,7 +1507,8 @@ func (suite *ExportServiceTestSuite) TestExportNotificationSenders_WildcardParti
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, 2)
-	assert.Equal(suite.T(), 2, result.Summary.TotalFiles)
+	assert.NotNil(suite.T(), result.EnvFile)
+	assert.Equal(suite.T(), 3, result.Summary.TotalFiles)
 	assert.Equal(suite.T(), 2, result.Summary.ResourceTypes["notification_sender"])
 }
 
@@ -1610,7 +1638,7 @@ func (suite *ExportServiceTestSuite) TestExportUserSchemas_NotFound() {
 
 	schemaError := &serviceerror.ServiceError{
 		Code:  "SCHEMA_NOT_FOUND",
-		Error: "User schema not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "User schema not found"},
 	}
 
 	suite.mockUserSchemaService.EXPECT().GetUserSchema(
@@ -1717,7 +1745,7 @@ func (suite *ExportServiceTestSuite) TestExportUserSchemas_WildcardPartialFailur
 
 	schemaError := &serviceerror.ServiceError{
 		Code:  "SCHEMA_NOT_FOUND",
-		Error: "User schema not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "User schema not found"},
 	}
 
 	suite.mockUserSchemaService.EXPECT().
@@ -1746,7 +1774,11 @@ func (suite *ExportServiceTestSuite) assertMultipleResourcesExport(
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Len(suite.T(), result.Files, expectedCount)
-	assert.Equal(suite.T(), expectedCount, result.Summary.TotalFiles)
+	expectedTotalFiles := expectedCount
+	if result.EnvFile != nil {
+		expectedTotalFiles++
+	}
+	assert.Equal(suite.T(), expectedTotalFiles, result.Summary.TotalFiles)
 	assert.Equal(suite.T(), expectedCount, result.Summary.ResourceTypes[resourceTypeKey])
 }
 
@@ -1828,7 +1860,7 @@ func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_ResourceNot
 	appID := "non-existent-app"
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplication(mock.Anything, appID).Return(nil, appError)
@@ -1860,7 +1892,7 @@ func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_PartialSucc
 
 	appError := &serviceerror.ServiceError{
 		Code:  "APP_NOT_FOUND",
-		Error: "Application not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Application not found"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplication(mock.Anything, validAppID).Return(mockApp, nil)
@@ -1922,7 +1954,7 @@ func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_WildcardSuc
 func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_WildcardFailure() {
 	listError := &serviceerror.ServiceError{
 		Code:  "LIST_FAILED",
-		Error: "Failed to list applications",
+		Error: i18ncore.I18nMessage{DefaultValue: "Failed to list applications"},
 	}
 
 	suite.appServiceMock.EXPECT().GetApplicationList(mock.Anything).Return(nil, listError)
@@ -2319,7 +2351,7 @@ func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_FlowNotFoun
 	flowID := "non-existent-flow"
 	flowError := &serviceerror.ServiceError{
 		Code:  "FLOW_NOT_FOUND",
-		Error: "Flow not found",
+		Error: i18ncore.I18nMessage{DefaultValue: "Flow not found"},
 	}
 	suite.mockFlowService.EXPECT().GetFlow(mock.Anything, flowID).Return(nil, flowError)
 
@@ -2402,7 +2434,7 @@ func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_WildcardFlo
 func (suite *ExportServiceTestSuite) TestExportResourcesWithExporter_WildcardFlows_ListFailure() {
 	dbError := &serviceerror.ServiceError{
 		Code:  "DB_ERROR",
-		Error: "Database error",
+		Error: i18ncore.I18nMessage{DefaultValue: "Database error"},
 	}
 	suite.mockFlowService.EXPECT().ListFlows(mock.Anything, 10000, 0, flowcommon.FlowType("")).Return(nil, dbError)
 

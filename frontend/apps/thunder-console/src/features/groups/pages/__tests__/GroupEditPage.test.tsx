@@ -23,6 +23,28 @@ import type {ReactNode} from 'react';
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import GroupEditPage from '../GroupEditPage';
 
+vi.mock('@thunder/components', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/components')>();
+  return {
+    ...actual,
+    CopyableId: vi.fn(({value}: {value: string}) => (
+      <span
+        data-testid="copyable-id"
+        role="button"
+        tabIndex={0}
+        onClick={() => void navigator.clipboard.writeText(value)}
+        onKeyDown={(e: {key: string}) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            void navigator.clipboard.writeText(value);
+          }
+        }}
+      >
+        {value}
+      </span>
+    )),
+  };
+});
+
 const mockNavigate = vi.fn();
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
@@ -193,12 +215,6 @@ describe('GroupEditPage', () => {
 
     expect(screen.getAllByText('Test Group').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('A test group')).toBeInTheDocument();
-  });
-
-  it('should render group ID', () => {
-    renderWithProviders(<GroupEditPage />);
-
-    expect(screen.getByText('g1')).toBeInTheDocument();
   });
 
   it('should render back button and navigate on click', async () => {
@@ -447,39 +463,6 @@ describe('GroupEditPage', () => {
     await waitFor(() => {
       expect(screen.getByText('No description')).toBeInTheDocument();
     });
-  });
-
-  it('should copy group ID to clipboard on click', async () => {
-    renderWithProviders(<GroupEditPage />);
-
-    const groupIdElement = screen.getByText('g1');
-    const copyButton = groupIdElement.closest('[role="button"]');
-    expect(copyButton).toBeTruthy();
-    fireEvent.click(copyButton!);
-
-    await waitFor(() => {
-      expect(mockWriteText).toHaveBeenCalledWith('g1');
-    });
-  });
-
-  it('should copy group ID on keyboard Enter', () => {
-    renderWithProviders(<GroupEditPage />);
-
-    const groupIdElement = screen.getByText('g1');
-    const copyButton = groupIdElement.closest('[role="button"]');
-    fireEvent.keyDown(copyButton!, {key: 'Enter'});
-
-    expect(mockWriteText).toHaveBeenCalledWith('g1');
-  });
-
-  it('should copy group ID on keyboard Space', () => {
-    renderWithProviders(<GroupEditPage />);
-
-    const groupIdElement = screen.getByText('g1');
-    const copyButton = groupIdElement.closest('[role="button"]');
-    fireEvent.keyDown(copyButton!, {key: ' '});
-
-    expect(mockWriteText).toHaveBeenCalledWith('g1');
   });
 
   it('should save changes when save button is clicked', async () => {

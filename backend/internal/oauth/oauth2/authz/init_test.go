@@ -28,14 +28,16 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/asgardeo/thunder/internal/system/config"
-	"github.com/asgardeo/thunder/tests/mocks/applicationmock"
 	"github.com/asgardeo/thunder/tests/mocks/flow/flowexecmock"
+	"github.com/asgardeo/thunder/tests/mocks/inboundclientmock"
 	"github.com/asgardeo/thunder/tests/mocks/jose/jwtmock"
+	"github.com/asgardeo/thunder/tests/mocks/resourcemock"
 )
 
 type InitTestSuite struct {
 	suite.Suite
-	mockAppService      *applicationmock.ApplicationServiceInterfaceMock
+	mockInboundClient   *inboundclientmock.InboundClientServiceInterfaceMock
+	mockResourceService *resourcemock.ResourceServiceInterfaceMock
 	mockJWTService      *jwtmock.JWTServiceInterfaceMock
 	mockFlowExecService *flowexecmock.FlowExecServiceInterfaceMock
 }
@@ -49,12 +51,12 @@ func (suite *InitTestSuite) SetupTest() {
 	testConfig := &config.Config{
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: "thunder_test.db",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: "thunder_test.db"},
 			},
 			Runtime: config.DataSource{
-				Type: "sqlite",
-				Path: "thunder_test.db",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: "thunder_test.db"},
 			},
 		},
 		GateClient: config.GateClientConfig{
@@ -70,7 +72,8 @@ func (suite *InitTestSuite) SetupTest() {
 	}
 	_ = config.InitializeThunderRuntime("", testConfig)
 
-	suite.mockAppService = applicationmock.NewApplicationServiceInterfaceMock(suite.T())
+	suite.mockInboundClient = inboundclientmock.NewInboundClientServiceInterfaceMock(suite.T())
+	suite.mockResourceService = resourcemock.NewResourceServiceInterfaceMock(suite.T())
 	suite.mockJWTService = jwtmock.NewJWTServiceInterfaceMock(suite.T())
 	suite.mockFlowExecService = flowexecmock.NewFlowExecServiceInterfaceMock(suite.T())
 }
@@ -82,7 +85,10 @@ func (suite *InitTestSuite) TearDownTest() {
 func (suite *InitTestSuite) TestInitialize() {
 	mux := http.NewServeMux()
 
-	service, err := Initialize(mux, suite.mockAppService, suite.mockJWTService, suite.mockFlowExecService)
+	service, err := Initialize(
+		mux, suite.mockInboundClient, suite.mockResourceService,
+		suite.mockJWTService, suite.mockFlowExecService, nil,
+	)
 
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), service)
@@ -92,7 +98,10 @@ func (suite *InitTestSuite) TestInitialize() {
 func (suite *InitTestSuite) TestInitialize_RegistersRoutes() {
 	mux := http.NewServeMux()
 
-	_, err := Initialize(mux, suite.mockAppService, suite.mockJWTService, suite.mockFlowExecService)
+	_, err := Initialize(
+		mux, suite.mockInboundClient, suite.mockResourceService,
+		suite.mockJWTService, suite.mockFlowExecService, nil,
+	)
 	assert.NoError(suite.T(), err)
 
 	// Verify that the routes are registered by attempting to get a handler for them.
@@ -110,7 +119,10 @@ func (suite *InitTestSuite) TestInitialize_RegistersRoutes() {
 func (suite *InitTestSuite) TestRegisterRoutes_CORSConfiguration() {
 	mux := http.NewServeMux()
 
-	_, err := Initialize(mux, suite.mockAppService, suite.mockJWTService, suite.mockFlowExecService)
+	_, err := Initialize(
+		mux, suite.mockInboundClient, suite.mockResourceService,
+		suite.mockJWTService, suite.mockFlowExecService, nil,
+	)
 	assert.NoError(suite.T(), err)
 
 	testCases := []struct {
@@ -157,7 +169,10 @@ func (suite *InitTestSuite) TestRegisterRoutes_CORSConfiguration() {
 func (suite *InitTestSuite) TestRegisterRoutes_CORSHeaders() {
 	mux := http.NewServeMux()
 
-	_, err := Initialize(mux, suite.mockAppService, suite.mockJWTService, suite.mockFlowExecService)
+	_, err := Initialize(
+		mux, suite.mockInboundClient, suite.mockResourceService,
+		suite.mockJWTService, suite.mockFlowExecService, nil,
+	)
 	assert.NoError(suite.T(), err)
 
 	testCases := []struct {

@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import RoleQueryKeys from '../constants/role-query-keys';
 import type {CreateRoleRequest} from '../models/requests';
@@ -43,7 +43,7 @@ export default function useCreateRole(): UseMutationResult<Role, Error, CreateRo
         url: `${serverUrl}/roles`,
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        data: JSON.stringify(roleData),
+        data: roleData,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

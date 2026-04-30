@@ -185,7 +185,7 @@ var (
 				"type": "string",
 			},
 			"password": map[string]interface{}{
-				"type": "string",
+				"type":       "string",
 				"credential": true,
 			},
 			"email": map[string]interface{}{
@@ -262,6 +262,7 @@ func (ts *VerboseMetaTestSuite) SetupSuite() {
 	verboseBasicFlowID = basicFlowID
 
 	// Create test application with the flow with prompt
+	verboseTestApp.OUID = ts.ouID
 	appID, err := testutils.CreateApplication(verboseTestApp)
 	ts.Require().NoError(err, "Failed to create test application")
 	verboseTestAppID = appID
@@ -332,7 +333,8 @@ func (ts *VerboseMetaTestSuite) TestVerboseModeEnabled() {
 		"password": "testpassword123",
 	}
 	action := "action_001"
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, inputs, action)
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, inputs, action,
+		flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to continue auth flow")
 	ts.Require().NotNil(flowStep, "Flow step should not be nil")
 
@@ -364,7 +366,8 @@ func (ts *VerboseMetaTestSuite) TestVerboseModeDisabled() {
 		"password": "testpassword123",
 	}
 	action := "action_001"
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, inputs, action)
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, inputs, action,
+		flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to continue auth flow")
 	ts.Require().NotNil(flowStep, "Flow step should not be nil")
 
@@ -377,6 +380,7 @@ func (ts *VerboseMetaTestSuite) TestVerboseModeWithGraphWithoutMeta() {
 	// Create a new app with a graph that doesn't have meta defined
 	appWithoutMeta := testutils.Application{
 		Name:                      "No Meta Test Application",
+		OUID:                      ts.ouID,
 		Description:               "Application for testing verbose mode without meta",
 		IsRegistrationFlowEnabled: false,
 		AuthFlowID:                verboseBasicFlowID,
@@ -411,7 +415,8 @@ func (ts *VerboseMetaTestSuite) TestVerboseModeWithGraphWithoutMeta() {
 		"username": "verboseuser",
 		"password": "testpassword123",
 	}
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, inputs, "")
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, inputs, "",
+		flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to continue auth flow")
 	ts.Require().NotNil(flowStep, "Flow step should not be nil")
 
@@ -436,7 +441,8 @@ func (ts *VerboseMetaTestSuite) TestVerbosePersistsAcrossRequests() {
 	action := "action_001"
 
 	// Note: We're not sending verbose flag here, it should be retrieved from stored context
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, inputs, action)
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, inputs, action,
+		flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to continue auth flow")
 	ts.Require().NotNil(flowStep, "Flow step should not be nil")
 

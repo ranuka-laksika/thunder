@@ -18,12 +18,12 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useQuery, type UseQueryResult} from '@tanstack/react-query';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import ApplicationQueryKeys from '../constants/application-query-keys';
 import type {Application} from '../models/application';
 
 /**
- * Custom React hook to fetch a single application by ID from the Thunder server.
+ * Custom React hook to fetch a single application by ID from the server.
  *
  * This hook uses TanStack Query to manage the server state and provides automatic
  * caching, refetching, and background updates. The query is automatically disabled

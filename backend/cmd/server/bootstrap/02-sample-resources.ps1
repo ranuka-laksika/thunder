@@ -17,6 +17,8 @@
 # under the License.
 # ----------------------------------------------------------------------------
 
+$PRODUCT_NAME = "Thunder"
+
 # Check for PowerShell Version Compatibility
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Host ""
@@ -25,7 +27,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Host "================================================================" -ForegroundColor Red
     Write-Host ""
     Write-Host " You are currently running PowerShell $($PSVersionTable.PSVersion.ToString())" -ForegroundColor Yellow
-    Write-Host " Thunder requires PowerShell 7 (Core) or later." -ForegroundColor Yellow
+    Write-Host " $PRODUCT_NAME requires PowerShell 7 (Core) or later." -ForegroundColor Yellow
     Write-Host ""
     Write-Host " Please install the latest version from:"
     Write-Host " https://github.com/PowerShell/PowerShell" -ForegroundColor Cyan
@@ -34,14 +36,14 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 }
 
 # Bootstrap Script: Sample Resources Setup
-# Creates resources required to run the Thunder sample experience
+# Creates resources required to run the product sample experience
 
 $ErrorActionPreference = 'Stop'
 
 # Dot-source common functions from the same directory as this script
 . "$PSScriptRoot/common.ps1"
 
-Log-Info "Creating sample Thunder resources..."
+Log-Info "Creating sample $PRODUCT_NAME resources..."
 Write-Host ""
 
 # ============================================================================
@@ -59,7 +61,7 @@ $customerOuData = @{
     logoUrl = "emoji:🏛️"
 } | ConvertTo-Json -Depth 5
 
-$response = Invoke-ThunderApi -Method POST -Endpoint "/organization-units" -Data $customerOuData
+$response = Invoke-Api -Method POST -Endpoint "/organization-units" -Data $customerOuData
 
 if ($response.StatusCode -eq 201 -or $response.StatusCode -eq 200) {
     Log-Success "Customers organization unit created successfully"
@@ -69,7 +71,7 @@ if ($response.StatusCode -eq 201 -or $response.StatusCode -eq 200) {
 elseif ($response.StatusCode -eq 409) {
     Log-Warning "Customers organization unit already exists, retrieving ID..."
     # Get existing OU ID by handle to ensure we get the correct "customers" OU
-    $response = Invoke-ThunderApi -Method GET -Endpoint "/organization-units/tree/$customerOuHandle"
+    $response = Invoke-Api -Method GET -Endpoint "/organization-units/tree/$customerOuHandle"
     if ($response.StatusCode -eq 200) {
         $body = $response.Body | ConvertFrom-Json
         $CUSTOMER_OU_ID = $body.id
@@ -146,7 +148,7 @@ $customerUserTypeData = ([ordered]@{
     }
 } | ConvertTo-Json -Depth 5)
 
-$response = Invoke-ThunderApi -Method POST -Endpoint "/user-schemas" -Data $customerUserTypeData
+$response = Invoke-Api -Method POST -Endpoint "/user-schemas" -Data $customerUserTypeData
 
 if ($response.StatusCode -eq 201 -or $response.StatusCode -eq 200) {
     Log-Success "Customer user type created successfully"
@@ -171,6 +173,7 @@ Log-Info "Creating Sample App application..."
 $appData = @{
     name = "Sample App"
     description = "Sample application for testing"
+    ouId = $CUSTOMER_OU_ID
     url = "https://localhost:3000"
     logoUrl = "emoji:🎁"
     tosUri = "https://localhost:3000/terms"
@@ -212,7 +215,7 @@ $appData = @{
     )
 } | ConvertTo-Json -Depth 15
 
-$response = Invoke-ThunderApi -Method POST -Endpoint "/applications" -Data $appData
+$response = Invoke-Api -Method POST -Endpoint "/applications" -Data $appData
 
 if ($response.StatusCode -in 200, 201, 202) {
     Log-Success "Sample App created successfully"
@@ -248,6 +251,7 @@ Log-Info "Creating React SDK Sample App application..."
 $reactSdkAppData = @{
     name = "React SDK Sample"
     description = "Sample React application using Thunder React SDK"
+    ouId = $CUSTOMER_OU_ID
     clientId = "REACT_SDK_SAMPLE"
     url = "https://localhost:3000"
     logoUrl = "emoji:🛍️"
@@ -258,10 +262,6 @@ $reactSdkAppData = @{
     assertion = @{
         validityPeriod = 3600
         userAttributes = $null
-    }
-    certificate = @{
-        type = "NONE"
-        value = ""
     }
     userAttributes = @("given_name","family_name","email","groups","name")
     allowedUserTypes = @("Customer")
@@ -297,7 +297,7 @@ $reactSdkAppData = @{
     )
 } | ConvertTo-Json -Depth 15
 
-$response = Invoke-ThunderApi -Method POST -Endpoint "/applications" -Data $reactSdkAppData
+$response = Invoke-Api -Method POST -Endpoint "/applications" -Data $reactSdkAppData
 
 if ($response.StatusCode -in 200, 201, 202) {
     Log-Success "React SDK Sample App created successfully"

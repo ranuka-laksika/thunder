@@ -38,6 +38,7 @@ export const ElementCategories = {
   Block: 'BLOCK',
   Display: 'DISPLAY',
   Field: 'FIELD',
+  Miscellaneous: 'MISCELLANEOUS',
 } as const;
 
 export const ElementTypes = {
@@ -50,6 +51,7 @@ export const ElementTypes = {
   OtpInput: 'OTP_INPUT',
   Checkbox: 'CHECKBOX',
   Dropdown: 'DROPDOWN',
+  Select: 'SELECT',
   Action: 'ACTION',
   Captcha: 'CAPTCHA',
   Divider: 'DIVIDER',
@@ -61,6 +63,7 @@ export const ElementTypes = {
   Resend: 'RESEND',
   Timer: 'TIMER',
   Consent: 'CONSENT',
+  Custom: 'CUSTOM',
 } as const;
 
 export const BlockTypes = {

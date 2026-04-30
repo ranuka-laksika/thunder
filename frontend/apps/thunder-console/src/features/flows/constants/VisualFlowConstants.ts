@@ -74,16 +74,11 @@ class VisualFlowConstants {
     ElementTypes.Checkbox,
     ElementTypes.Dropdown,
     // Widgets are allowed for drop detection, but handled specially to show dialog
-    WidgetTypes.EmailOTP,
     WidgetTypes.GoogleFederation,
     WidgetTypes.IdentifierPassword,
     WidgetTypes.SMSOTP,
-    WidgetTypes.AppleFederation,
-    WidgetTypes.FacebookFederation,
-    WidgetTypes.MicrosoftFederation,
     WidgetTypes.GithubFederation,
     WidgetTypes.PasskeyAuthentication,
-    WidgetTypes.MagicLink,
     WidgetTypes.SelfSignUpLink,
     ElementTypes.Timer,
   ];
@@ -98,6 +93,7 @@ class VisualFlowConstants {
     ElementTypes.Divider,
     ElementTypes.Image,
     ElementTypes.Captcha,
+    ElementTypes.Custom,
     // Input types are allowed for drop detection, but handled specially to show dialog
     ElementTypes.TextInput,
     ElementTypes.PasswordInput,
@@ -108,16 +104,11 @@ class VisualFlowConstants {
     ElementTypes.OtpInput,
     ElementTypes.Checkbox,
     ElementTypes.Dropdown,
-    WidgetTypes.EmailOTP,
     WidgetTypes.GoogleFederation,
     WidgetTypes.IdentifierPassword,
     WidgetTypes.SMSOTP,
-    WidgetTypes.AppleFederation,
-    WidgetTypes.FacebookFederation,
-    WidgetTypes.MicrosoftFederation,
     WidgetTypes.GithubFederation,
     WidgetTypes.PasskeyAuthentication,
-    WidgetTypes.MagicLink,
     WidgetTypes.SelfSignUpLink,
     ElementTypes.Timer,
   ];
@@ -149,6 +140,7 @@ class VisualFlowConstants {
     ElementTypes.Divider,
     ElementTypes.Image,
     ElementTypes.Timer,
+    ElementTypes.Custom,
   ];
 
   public static readonly FLOW_BUILDER_STACK_ALLOWED_RESOURCE_TYPES: string[] = [
@@ -169,8 +161,6 @@ class VisualFlowConstants {
     ElementTypes.Divider,
     ElementTypes.Image,
   ];
-
-  public static readonly FLOW_BUILDER_PLUGIN_FUNCTION_IDENTIFIER: string = 'uniqueName';
 
   public static readonly FLOW_BUILDER_STATIC_CONTENT_ALLOWED_EXECUTION_TYPES: ExecutionTypes[] = [
     ExecutionTypes.MagicLinkExecutor,

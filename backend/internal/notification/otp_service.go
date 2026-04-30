@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/asgardeo/thunder/internal/notification/common"
@@ -32,6 +33,7 @@ import (
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	"github.com/asgardeo/thunder/internal/system/jose/jwt"
 	"github.com/asgardeo/thunder/internal/system/log"
+	"github.com/asgardeo/thunder/internal/system/template"
 )
 
 // otpUseOnlyNumericChars indicates whether to use only numeric characters for OTP generation.
@@ -40,7 +42,8 @@ var otpUseOnlyNumericChars = true
 // OTPServiceInterface defines the interface for OTP operations.
 type OTPServiceInterface interface {
 	SendOTP(ctx context.Context, request common.SendOTPDTO) (*common.SendOTPResultDTO, *serviceerror.ServiceError)
-	VerifyOTP(ctx context.Context, request common.VerifyOTPDTO) (*common.VerifyOTPResultDTO, *serviceerror.ServiceError)
+	VerifyOTP(ctx context.Context, request common.VerifyOTPDTO) (
+		*common.VerifyOTPResultDTO, *serviceerror.ServiceError)
 }
 
 // otpService implements the OTPServiceInterface.
@@ -48,15 +51,17 @@ type otpService struct {
 	jwtService       jwt.JWTServiceInterface
 	senderMgtService NotificationSenderMgtSvcInterface
 	clientProvider   notificationClientProviderInterface
+	templateService  template.TemplateServiceInterface
 }
 
 // newOTPService returns a new instance of OTPServiceInterface.
 func newOTPService(notifSenderSvc NotificationSenderMgtSvcInterface,
-	jwtSvc jwt.JWTServiceInterface) OTPServiceInterface {
+	jwtSvc jwt.JWTServiceInterface, templateSvc template.TemplateServiceInterface) OTPServiceInterface {
 	return &otpService{
 		jwtService:       jwtSvc,
 		senderMgtService: notifSenderSvc,
 		clientProvider:   newNotificationClientProvider(),
+		templateService:  templateSvc,
 	}
 }
 
@@ -64,7 +69,7 @@ func newOTPService(notifSenderSvc NotificationSenderMgtSvcInterface,
 func (s *otpService) SendOTP(
 	ctx context.Context, otpDTO common.SendOTPDTO) (*common.SendOTPResultDTO, *serviceerror.ServiceError) {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "OTPService"))
-	logger.Debug("Sending OTP", log.String("recipient", log.MaskString(otpDTO.Recipient)),
+	logger.Debug("Sending OTP", log.MaskedString("recipient", otpDTO.Recipient),
 		log.String("channel", otpDTO.Channel), log.String("senderId", otpDTO.SenderID))
 
 	if err := s.validateOTPSendRequest(otpDTO); err != nil {
@@ -76,7 +81,7 @@ func (s *otpService) SendOTP(
 		if svcErr.Code == ErrorSenderNotFound.Code {
 			return nil, &ErrorSenderNotFound
 		}
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 	if sender == nil {
 		return nil, &ErrorSenderNotFound
@@ -88,13 +93,13 @@ func (s *otpService) SendOTP(
 	otp, err := s.generateOTP()
 	if err != nil {
 		logger.Error("Failed to generate OTP", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	// Send OTP based on channel
 	switch common.ChannelType(otpDTO.Channel) {
 	case common.ChannelTypeSMS:
-		if svcErr := s.sendSMSOTP(otpDTO.Recipient, otp.Value, *sender, logger); svcErr != nil {
+		if svcErr := s.sendSMSOTP(ctx, otpDTO.Recipient, otp.Value, *sender, logger); svcErr != nil {
 			return nil, svcErr
 		}
 	default:
@@ -113,10 +118,10 @@ func (s *otpService) SendOTP(
 	sessionToken, err := s.createSessionToken(sessionData)
 	if err != nil {
 		logger.Error("Failed to create session token", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
-	logger.Debug("OTP sent successfully", log.String("recipient", log.MaskString(otpDTO.Recipient)))
+	logger.Debug("OTP sent successfully", log.MaskedString("recipient", otpDTO.Recipient))
 
 	return &common.SendOTPResultDTO{
 		SessionToken: sessionToken,
@@ -248,30 +253,29 @@ func (s *otpService) getOTPValidityPeriodInMillis() int64 {
 }
 
 // sendSMSOTP sends an SMS OTP to the recipient.
-func (s *otpService) sendSMSOTP(recipient, otp string, sender common.NotificationSenderDTO,
-	logger *log.Logger) *serviceerror.ServiceError {
-	// TODO: This needs to be configured as a property
-	message := fmt.Sprintf("Your verification code is: %s. This code will expire in 2 minutes.", otp)
-
-	smsData := common.SMSData{
-		To:   recipient,
-		Body: message,
-	}
-
-	// Get message client using existing pattern
-	client, svcErr := s.clientProvider.GetMessageClient(sender)
+func (s *otpService) sendSMSOTP(ctx context.Context, recipient, otp string,
+	sender common.NotificationSenderDTO, logger *log.Logger) *serviceerror.ServiceError {
+	expiryMinutes := strconv.FormatInt(s.getOTPValidityPeriodInMillis()/60000, 10)
+	templateData := template.TemplateData{"otp": otp, "expiryMinutes": expiryMinutes}
+	rendered, svcErr := s.templateService.Render(ctx, template.ScenarioOTP, template.TemplateTypeSMS, templateData)
 	if svcErr != nil {
-		return svcErr
-	}
-	if client == nil {
-		logger.Error("Message client is nil", log.String("provider", string(sender.Provider)))
-		return &ErrorInternalServerError
+		logger.Error("Failed to render SMS OTP template", log.String("error", svcErr.Code))
+		return &serviceerror.InternalServerError
 	}
 
-	err := client.SendSMS(smsData)
-	if err != nil {
-		logger.Error("Failed to send SMS", log.Error(err))
-		return &ErrorInternalServerError
+	_client, clientSvcErr := s.clientProvider.GetClient(sender)
+	if clientSvcErr != nil {
+		return clientSvcErr
+	}
+
+	if !_client.IsChannelSupported(common.ChannelTypeSMS) {
+		return &ErrorUnsupportedChannel
+	}
+
+	notifData := common.NotificationData{Recipient: recipient, Body: rendered.Body}
+	if err := _client.Send(common.ChannelTypeSMS, notifData); err != nil {
+		logger.Error("Failed to send SMS OTP", log.Error(err))
+		return &serviceerror.InternalServerError
 	}
 
 	return nil
@@ -287,8 +291,9 @@ func (s *otpService) createSessionToken(sessionData common.OTPSessionData) (stri
 	validityPeriod := (sessionData.ExpiryTime - time.Now().UnixMilli()) / 1000
 	jwtConfig := config.GetThunderRuntime().Config.JWT
 
+	claims["aud"] = "otp-svc"
 	token, _, err := s.jwtService.GenerateJWT(
-		"otp-svc", "otp-svc", jwtConfig.Issuer, validityPeriod, claims, jwt.TokenTypeJWT)
+		"otp-svc", jwtConfig.Issuer, validityPeriod, claims, jwt.TokenTypeJWT, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate JWT token: %v", err)
 	}
@@ -303,7 +308,7 @@ func (s *otpService) verifyAndDecodeSessionToken(token string, logger *log.Logge
 	jwtConfig := config.GetThunderRuntime().Config.JWT
 	svcErr := s.jwtService.VerifyJWT(token, "otp-svc", jwtConfig.Issuer)
 	if svcErr != nil {
-		logger.Debug("Invalid session token", log.String("error", svcErr.Error))
+		logger.Debug("Invalid session token", log.String("error", svcErr.Error.DefaultValue))
 		return nil, &ErrorInvalidSessionToken
 	}
 

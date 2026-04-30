@@ -22,25 +22,22 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 
 import {SignUp, useAsgardeo, type EmbeddedFlowComponent} from '@asgardeo/react';
-import {FlowComponentRenderer, AuthCardLayout, useDesign} from '@thunder/shared-design';
+import {FlowComponentRenderer, AuthCardLayout, useDesign} from '@thunder/design';
 import {Box, Button, Alert, Typography, AlertTitle, CircularProgress} from '@wso2/oxygen-ui';
 import type {JSX} from 'react';
 import {useState} from 'react';
 import {Trans, useTranslation} from 'react-i18next';
-import {useNavigate, useSearchParams} from 'react-router';
+import {useNavigate} from 'react-router';
 import ROUTES from '../../constants/routes';
 
 export default function SignUpBox(): JSX.Element {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const {resolveFlowTemplateLiterals: resolve} = useAsgardeo();
   const {t} = useTranslation();
   const {isDesignEnabled} = useDesign();
-  const [emailSent, setEmailSent] = useState<boolean | null>(null);
   const [flowError, setFlowError] = useState<string | null>(null);
 
-  const currentParams = searchParams.toString();
-  const signInUrl = currentParams ? `${ROUTES.AUTH.SIGN_IN}?${currentParams}` : ROUTES.AUTH.SIGN_IN;
+  const signInUrl = ROUTES.AUTH.SIGN_IN;
 
   const renderFlowContent = (
     components: EmbeddedFlowComponent[],
@@ -80,28 +77,6 @@ export default function SignUpBox(): JSX.Element {
         </Box>
       );
     }
-    if (emailSent === true) {
-      return (
-        <Alert severity="info" sx={{mb: 2}}>
-          <AlertTitle>{t('signup:email.sent.title', 'Check your email')}</AlertTitle>
-          {t(
-            'signup:email.sent.description',
-            'We sent you an invitation link. Please check your inbox and click the link to continue.',
-          )}
-        </Alert>
-      );
-    }
-    if (emailSent === false) {
-      return (
-        <Alert severity="warning" sx={{mb: 2}}>
-          <AlertTitle>{t('signup:email.not.sent.title', 'Email service unavailable')}</AlertTitle>
-          {t(
-            'signup:email.not.sent.description',
-            'Your registration was received but the verification email could not be sent. Please contact your administrator.',
-          )}
-        </Alert>
-      );
-    }
     if (!error) {
       return (
         <Alert severity="error" sx={{mb: 2}}>
@@ -129,12 +104,6 @@ export default function SignUpBox(): JSX.Element {
       <SignUp
         afterSignUpUrl={signInUrl}
         onFlowChange={(response: any) => {
-          const emailSentValue = response?.data?.additionalData?.emailSent;
-          if (emailSentValue === 'true') {
-            setEmailSent(true);
-          } else if (emailSentValue === 'false') {
-            setEmailSent(false);
-          }
           if (response?.failureReason) {
             setFlowError(response.failureReason as string);
           } else {
@@ -175,32 +144,30 @@ export default function SignUpBox(): JSX.Element {
               </>
             )}
 
-            {emailSent !== true && (
-              <Typography sx={{textAlign: 'center', mt: 3}}>
-                <Trans i18nKey="signup:redirect.to.signin">
-                  Already have an account?
-                  <Button
-                    variant="text"
-                    onClick={() => {
-                      void navigate(signInUrl);
-                    }}
-                    sx={{
-                      p: 0,
-                      minWidth: 'auto',
-                      textTransform: 'none',
-                      color: 'primary.main',
+            <Typography sx={{textAlign: 'center', mt: 3}}>
+              <Trans i18nKey="signup:redirect.to.signin">
+                Already have an account?
+                <Button
+                  variant="text"
+                  onClick={() => {
+                    void navigate(signInUrl);
+                  }}
+                  sx={{
+                    p: 0,
+                    minWidth: 'auto',
+                    textTransform: 'none',
+                    color: 'primary.main',
+                    textDecoration: 'underline',
+                    '&:hover': {
                       textDecoration: 'underline',
-                      '&:hover': {
-                        textDecoration: 'underline',
-                        backgroundColor: 'transparent',
-                      },
-                    }}
-                  >
-                    Sign in
-                  </Button>
-                </Trans>
-              </Typography>
-            )}
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  Sign in
+                </Button>
+              </Trans>
+            </Typography>
           </>
         )}
       </SignUp>

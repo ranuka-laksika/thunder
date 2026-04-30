@@ -242,9 +242,9 @@ func (ts *ConditionalExecAuthFlowTestSuite) SetupSuite() {
 	ts.Require().NoError(err)
 
 	existingUser := testutils.User{
-		Type:             conditionalExecUserSchema.Name,
-		OUID:             conditionalExecPreCreatedOUID,
-		Attributes:       json.RawMessage(attributesJSON),
+		Type:       conditionalExecUserSchema.Name,
+		OUID:       conditionalExecPreCreatedOUID,
+		Attributes: json.RawMessage(attributesJSON),
 	}
 	existingUserID, err := testutils.CreateUser(existingUser)
 	ts.Require().NoError(err, "Failed to create existing test user")
@@ -315,6 +315,7 @@ func (ts *ConditionalExecAuthFlowTestSuite) SetupSuite() {
 	conditionalExecTestApp.AuthFlowID = flowID
 
 	// Create test application
+	conditionalExecTestApp.OUID = conditionalExecPreCreatedOUID
 	appID, err := testutils.CreateApplication(conditionalExecTestApp)
 	ts.Require().NoError(err, "Failed to create test application")
 	conditionalExecTestAppID = appID
@@ -379,7 +380,7 @@ func (ts *ConditionalExecAuthFlowTestSuite) TestSkipConditionalNodes() {
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECTION")
 
-	flowID := flowStep.FlowID
+	ExecutionID := flowStep.ExecutionID
 	redirectURLStr := flowStep.Data.RedirectURL
 
 	// Step 2: Simulate user authorization at Google
@@ -390,7 +391,7 @@ func (ts *ConditionalExecAuthFlowTestSuite) TestSkipConditionalNodes() {
 	inputs := map[string]string{
 		"code": authCode,
 	}
-	flowStep, err = common.CompleteFlow(flowID, inputs, "")
+	flowStep, err = common.CompleteFlow(ExecutionID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete authentication flow")
 
 	// For existing user, flow should complete directly
@@ -424,7 +425,7 @@ func (ts *ConditionalExecAuthFlowTestSuite) TestExecuteConditionalNodes() {
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECTION")
 
-	flowID := flowStep.FlowID
+	ExecutionID := flowStep.ExecutionID
 	redirectURLStr := flowStep.Data.RedirectURL
 	ts.Require().NotEmpty(redirectURLStr, "Redirect URL should not be empty")
 
@@ -437,7 +438,7 @@ func (ts *ConditionalExecAuthFlowTestSuite) TestExecuteConditionalNodes() {
 	inputs := map[string]string{
 		"code": authCode,
 	}
-	flowStep, err = common.CompleteFlow(flowID, inputs, "")
+	flowStep, err = common.CompleteFlow(ExecutionID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete authentication flow")
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("VIEW", flowStep.Type, "Expected flow type to be VIEW")
@@ -448,7 +449,7 @@ func (ts *ConditionalExecAuthFlowTestSuite) TestExecuteConditionalNodes() {
 		"ouHandle":      conditionalExecNewOUHandle,
 		"ouDescription": "Organization Unit created during conditional exec auth flow test",
 	}
-	flowStep, err = common.CompleteFlow(flowID, ouInputs, "")
+	flowStep, err = common.CompleteFlow(ExecutionID, ouInputs, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete authentication flow after OU details")
 	ts.Require().Equal("COMPLETE", flowStep.FlowStatus, "Expected flow status to be COMPLETE")
 	ts.Require().NotEmpty(flowStep.Assertion, "Assertion token should be present")

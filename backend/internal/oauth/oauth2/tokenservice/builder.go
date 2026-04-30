@@ -21,7 +21,7 @@ package tokenservice
 import (
 	"fmt"
 
-	appmodel "github.com/asgardeo/thunder/internal/application/model"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
 	oauth2model "github.com/asgardeo/thunder/internal/oauth/oauth2/model"
 	oauth2utils "github.com/asgardeo/thunder/internal/oauth/oauth2/utils"
@@ -69,18 +69,18 @@ func (tb *tokenBuilder) BuildAccessToken(ctx *AccessTokenBuildContext) (*oauth2m
 		UserAttributes:   userAttributes,
 		AttributeCacheID: ctx.AttributeCacheID,
 		Subject:          ctx.Subject,
-		Audience:         ctx.Audience,
+		Audiences:        ctx.Audiences,
 		ClaimsRequest:    ctx.ClaimsRequest,
 		ClaimsLocales:    ctx.ClaimsLocales,
 	}
 
 	token, iat, err := tb.jwtService.GenerateJWT(
 		ctx.Subject,
-		ctx.Audience,
 		tokenConfig.Issuer,
 		tokenConfig.ValidityPeriod,
 		jwtClaims,
 		jwt.TokenTypeAccessToken,
+		"",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %v", err.Error)
@@ -117,6 +117,11 @@ func (tb *tokenBuilder) buildAccessTokenClaims(
 		claims[key] = value
 	}
 
+	// Merge OAuth client/application-scoped attributes.
+	for key, value := range ctx.ClientAttributes {
+		claims[key] = value
+	}
+
 	// Set after merging user attributes to prevent user attributes from overwriting this system claim.
 	if ctx.AttributeCacheID != "" {
 		claims["aci"] = ctx.AttributeCacheID
@@ -146,13 +151,19 @@ func (tb *tokenBuilder) buildAccessTokenClaims(
 		claims[constants.ClaimClaimsLocales] = ctx.ClaimsLocales
 	}
 
+	if len(ctx.Audiences) > 1 {
+		claims["aud"] = ctx.Audiences
+	} else if len(ctx.Audiences) == 1 {
+		claims["aud"] = ctx.Audiences[0]
+	}
+
 	return claims, nil
 }
 
 // buildAccessTokenUserAttributes builds user attributes for the access token based on app configuration.
 func (tb *tokenBuilder) buildAccessTokenUserAttributes(
 	attrs map[string]interface{},
-	oauthApp *appmodel.OAuthAppConfigProcessedDTO,
+	oauthApp *inboundmodel.OAuthClient,
 ) map[string]interface{} {
 	accessTokenAttributes := make(map[string]interface{})
 
@@ -218,17 +229,19 @@ func (tb *tokenBuilder) BuildRefreshToken(ctx *RefreshTokenBuildContext) (*oauth
 		Scopes:        ctx.Scopes,
 		ClientID:      ctx.ClientID,
 		Subject:       ctx.AccessTokenSubject,
-		Audience:      tokenConfig.Issuer,
+		Audiences:     []string{tokenConfig.Issuer},
 		ClaimsLocales: ctx.ClaimsLocales,
 	}
+
+	claims["aud"] = tokenConfig.Issuer
 
 	token, iat, err := tb.jwtService.GenerateJWT(
 		ctx.ClientID,
 		tokenConfig.Issuer,
-		tokenConfig.Issuer,
 		tokenConfig.ValidityPeriod,
 		claims,
 		jwt.TokenTypeJWT,
+		"",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %v", err.Error)
@@ -250,7 +263,7 @@ func (tb *tokenBuilder) buildRefreshTokenClaims(ctx *RefreshTokenBuildContext) (
 	}
 
 	claims["access_token_sub"] = ctx.AccessTokenSubject
-	claims["access_token_aud"] = ctx.AccessTokenAudience
+	claims["access_token_aud"] = ctx.AccessTokenAudiences
 	claims["grant_type"] = ctx.GrantType
 
 	if ctx.AttributeCacheID != "" {
@@ -291,16 +304,18 @@ func (tb *tokenBuilder) BuildIDToken(ctx *IDTokenBuildContext) (*oauth2model.Tok
 		Scopes:    ctx.Scopes,
 		ClientID:  ctx.Audience,
 		Subject:   ctx.Subject,
-		Audience:  ctx.Audience,
+		Audiences: []string{ctx.Audience},
 	}
+
+	jwtClaims["aud"] = ctx.Audience
 
 	token, iat, err := tb.jwtService.GenerateJWT(
 		ctx.Subject,
-		ctx.Audience,
 		tokenConfig.Issuer,
 		tokenConfig.ValidityPeriod,
 		jwtClaims,
 		jwt.TokenTypeJWT,
+		"",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate ID token: %v", err.Error)

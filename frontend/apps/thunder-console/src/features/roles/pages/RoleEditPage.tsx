@@ -16,10 +16,9 @@
  * under the License.
  */
 
+import {useToast} from '@thunder/contexts';
 import {useLogger} from '@thunder/logger/react';
-import {useToast} from '@thunder/shared-contexts';
 import {
-  Avatar,
   Box,
   Stack,
   Typography,
@@ -34,12 +33,11 @@ import {
   PageContent,
   PageTitle,
 } from '@wso2/oxygen-ui';
-import {ArrowLeft, Edit, ShieldCheck} from '@wso2/oxygen-ui-icons-react';
+import {ArrowLeft, Edit} from '@wso2/oxygen-ui-icons-react';
 import {useState, useCallback, useMemo} from 'react';
 import type {ReactNode, SyntheticEvent, JSX} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Link, useNavigate, useParams} from 'react-router';
-import CopyableId from '../../../components/CopyableId';
 import useGetRole from '../api/useGetRole';
 import useUpdateRole from '../api/useUpdateRole';
 import EditAssignmentsSettings from '../components/edit-role/assignments-settings/EditAssignmentsSettings';
@@ -185,11 +183,6 @@ export default function RoleEditPage(): JSX.Element {
       {/* Header */}
       <PageTitle>
         <PageTitle.BackButton component={<Link to={listUrl} />}>{t('roles:edit.page.back')}</PageTitle.BackButton>
-        <PageTitle.Avatar>
-          <Avatar>
-            <ShieldCheck size={32} />
-          </Avatar>
-        </PageTitle.Avatar>
         <PageTitle.Header>
           <Stack direction="row" alignItems="center" spacing={1} mb={1}>
             {isEditingName ? (
@@ -283,8 +276,6 @@ export default function RoleEditPage(): JSX.Element {
               </>
             )}
           </Stack>
-
-          <CopyableId value={role.id} copyLabel={t('roles:edit.general.sections.quickCopy.copyRoleId')} />
         </PageTitle.SubHeader>
       </PageTitle>
 

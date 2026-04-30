@@ -19,11 +19,12 @@
 import {Alert, Box, Snackbar, Stack} from '@wso2/oxygen-ui';
 import type {Edge, Node} from '@xyflow/react';
 import {useEdgesState, useNodesState, useUpdateNodeInternals} from '@xyflow/react';
-import {useCallback, useEffect, useMemo} from 'react';
+import {useCallback, useEffect, useMemo, useRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useParams} from 'react-router';
 import '@xyflow/react/dist/style.css';
 import useGetLoginFlowBuilderResources from '../api/useGetLoginFlowBuilderResources';
+import {EXECUTOR_TO_IDP_TYPE_MAP} from '../components/resource-property-panel/extended-properties/execution-properties/constants';
 import LoginFlowConstants from '../constants/LoginFlowConstants';
 import useEdgeGeneration from '../hooks/useEdgeGeneration';
 import useElementAddition from '../hooks/useElementAddition';
@@ -37,9 +38,14 @@ import {mutateComponents} from '../utils/componentMutations';
 import GradientBorderButton from '@/features/applications/components/GradientBorderButton';
 import useGetFlowById from '@/features/flows/api/useGetFlowById';
 import FlowBuilder from '@/features/flows/components/FlowBuilder';
-import useFlowBuilderCore from '@/features/flows/hooks/useFlowBuilderCore';
+import useFlowConfig from '@/features/flows/hooks/useFlowConfig';
+import useFlowEvents from '@/features/flows/hooks/useFlowEvents';
 import useValidationStatus from '@/features/flows/hooks/useValidationStatus';
-import {StepTypes} from '@/features/flows/models/steps';
+import {ExecutionTypes, StepTypes, type StepData} from '@/features/flows/models/steps';
+import useIdentityProviders from '@/features/integrations/api/useIdentityProviders';
+import useNotificationSenders from '@/features/notification-senders/api/useNotificationSenders';
+
+const SMS_EXECUTORS = new Set<string>([ExecutionTypes.SMSOTPAuth, ExecutionTypes.SMSExecutor]);
 
 function LoginFlowBuilder() {
   const {flowId} = useParams<{flowId: string}>();
@@ -48,7 +54,8 @@ function LoginFlowBuilder() {
   const {t} = useTranslation();
 
   const {data: resources} = useGetLoginFlowBuilderResources();
-  const {edgeStyle, isVerboseMode} = useFlowBuilderCore();
+  const {edgeStyle, isVerboseMode} = useFlowConfig();
+  const {triggerAutoLayout, onRestoreFromHistory, onElementAdded} = useFlowEvents();
   const {isValid: isFlowValid, setOpenValidationPanel} = useValidationStatus();
   const updateNodeInternals = useUpdateNodeInternals();
 
@@ -76,11 +83,10 @@ function LoginFlowBuilder() {
     handleCloseInfoSnackbar,
   } = useSnackbarNotifications();
 
-  // Callback to trigger auto-layout from the snackbar via custom event
   const handleAutoLayoutClick = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('triggerAutoLayout'));
+    triggerAutoLayout();
     handleCloseInfoSnackbar();
-  }, [handleCloseInfoSnackbar]);
+  }, [triggerAutoLayout, handleCloseInfoSnackbar]);
 
   // Edge generation hook
   const {generateEdges, validateEdges} = useEdgeGeneration({
@@ -102,6 +108,82 @@ function LoginFlowBuilder() {
     edgeStyle,
     onNeedsAutoLayout: setNeedsAutoLayout,
   });
+
+  // Auto-assign connections for executor nodes with placeholder IDP/sender IDs
+  const {data: identityProviders} = useIdentityProviders();
+  const {data: notificationSenders} = useNotificationSenders();
+  const hasAutoAssignedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (nodes.length === 0 || hasAutoAssignedRef.current) {
+      return;
+    }
+
+    // Wait until both data sources are available
+    if (!identityProviders || !notificationSenders) {
+      return;
+    }
+
+    setNodes((currentNodes: Node[]) => {
+      let changed = false;
+
+      const updated = currentNodes.map((node: Node) => {
+        if (node.type !== StepTypes.Execution) return node;
+
+        const stepData = node.data as StepData | undefined;
+        const executorName = (stepData?.action as {executor?: {name?: string}} | undefined)?.executor?.name;
+        if (!executorName) return node;
+
+        const {senderId: currentSenderId = '', idpId: currentIdpId = ''} =
+          (stepData?.properties as Record<string, string> | undefined) ?? {};
+
+        // Handle SMS executors - auto-assign senderId
+        if (SMS_EXECUTORS.has(executorName) && notificationSenders) {
+          if (currentSenderId === '{{SENDER_ID}}' || currentSenderId === '') {
+            if (notificationSenders.length === 1) {
+              changed = true;
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  properties: {
+                    ...((stepData?.properties as Record<string, unknown>) ?? {}),
+                    senderId: notificationSenders[0].id,
+                  },
+                },
+              };
+            }
+          }
+          return node;
+        }
+
+        // Handle IDP executors - auto-assign idpId
+        const idpType = EXECUTOR_TO_IDP_TYPE_MAP[executorName];
+        if (!idpType || !identityProviders) return node;
+
+        if (currentIdpId !== '{{IDP_ID}}' && currentIdpId !== '') return node;
+
+        const matching = identityProviders.filter((idp) => idp.type === idpType);
+        if (matching.length !== 1) return node;
+
+        changed = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            properties: {...((stepData?.properties as Record<string, unknown>) ?? {}), idpId: matching[0].id},
+          },
+        };
+      });
+
+      if (changed) {
+        hasAutoAssignedRef.current = true;
+        return updated;
+      }
+
+      return currentNodes;
+    });
+  }, [identityProviders, notificationSenders, nodes.length, setNodes]);
 
   // Element addition hook
   const {handleAddElementToView, handleAddElementToForm} = useElementAddition({
@@ -135,6 +217,7 @@ function LoginFlowBuilder() {
     isFlowValid,
     flowName,
     flowHandle,
+    flowType: (existingFlowData as {flowType?: string} | undefined)?.flowType ?? 'AUTHENTICATION',
     showError,
     showSuccess,
     setOpenValidationPanel,
@@ -143,39 +226,25 @@ function LoginFlowBuilder() {
   const onNodesChange = defaultOnNodesChange;
 
   // Handle restore from history event
-  useEffect(() => {
-    const handleRestoreFromHistory = (event: CustomEvent) => {
-      const {nodes: restoredNodes, edges: restoredEdges} = event.detail as {nodes?: Node[]; edges?: Edge[]};
-
-      if (restoredNodes && restoredEdges) {
+  useEffect(
+    () =>
+      onRestoreFromHistory((restoredNodes, restoredEdges) => {
         setNodes(restoredNodes);
         setEdges(restoredEdges);
-      }
-    };
-
-    window.addEventListener('restoreFromHistory', handleRestoreFromHistory as EventListener);
-
-    return () => {
-      window.removeEventListener('restoreFromHistory', handleRestoreFromHistory as EventListener);
-    };
-  }, [setNodes, setEdges]);
+      }),
+    [onRestoreFromHistory, setNodes, setEdges],
+  );
 
   // Listen for element added events to show auto-layout hint
-  useEffect(() => {
-    const handleElementAdded = (event: CustomEvent<{type: string}>) => {
-      const {type} = event.detail;
-      // Only show hint for steps, widgets, and templates (not individual components)
-      if (type === 'step' || type === 'widget' || type === 'template') {
-        showInfo(t('flows:core.canvas.hints.autoLayout'));
-      }
-    };
-
-    window.addEventListener('flowElementAdded', handleElementAdded as EventListener);
-
-    return () => {
-      window.removeEventListener('flowElementAdded', handleElementAdded as EventListener);
-    };
-  }, [showInfo, t]);
+  useEffect(
+    () =>
+      onElementAdded((type) => {
+        if (type === 'step' || type === 'widget' || type === 'template') {
+          showInfo(t('flows:core.canvas.hints.autoLayout'));
+        }
+      }),
+    [onElementAdded, showInfo, t],
+  );
 
   // Update edge types when edge style changes
   useEffect(() => {
@@ -209,7 +278,6 @@ function LoginFlowBuilder() {
     <Box
       sx={{
         width: '100%',
-        height: '100vh',
       }}
     >
       <FlowBuilder

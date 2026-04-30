@@ -27,8 +27,8 @@ vi.mock('@asgardeo/react', () => ({
   useAsgardeo: vi.fn(),
 }));
 
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useConfig: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('@thunder/shared-contexts', async (importOriginal) => {
 });
 
 const {useAsgardeo} = await import('@asgardeo/react');
-const {useConfig} = await import('@thunder/shared-contexts');
+const {useConfig} = await import('@thunder/contexts');
 
 describe('useRegenerateClientSecret', () => {
   let mockHttpRequest: ReturnType<typeof vi.fn>;
@@ -203,11 +203,10 @@ describe('useRegenerateClientSecret', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    const putCall = mockHttpRequest.mock.calls[1][0] as {data: string};
-    const putCallData = JSON.parse(putCall.data) as Record<string, unknown>;
-    expect(putCallData).not.toHaveProperty('id');
-    expect(putCallData).not.toHaveProperty('createdAt');
-    expect(putCallData).not.toHaveProperty('updatedAt');
+    const putCall = mockHttpRequest.mock.calls[1][0] as {data: Record<string, unknown>};
+    expect(putCall.data).not.toHaveProperty('id');
+    expect(putCall.data).not.toHaveProperty('createdAt');
+    expect(putCall.data).not.toHaveProperty('updatedAt');
   });
 
   it('should include the new client secret in the PUT request body', async () => {
@@ -222,11 +221,10 @@ describe('useRegenerateClientSecret', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    const putCall = mockHttpRequest.mock.calls[1][0] as {data: string};
-    const putCallData = JSON.parse(putCall.data) as {
-      inboundAuthConfig: {type: string; config: {clientSecret: string}}[];
+    const putCall = mockHttpRequest.mock.calls[1][0] as {
+      data: {inboundAuthConfig: {type: string; config: {clientSecret: string}}[]};
     };
-    const oauth2Config = putCallData.inboundAuthConfig.find((c: {type: string}) => c.type === 'oauth2');
+    const oauth2Config = putCall.data.inboundAuthConfig.find((c: {type: string}) => c.type === 'oauth2');
     expect(oauth2Config?.config.clientSecret).toBe(result.current.data?.clientSecret);
   });
 

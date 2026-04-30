@@ -20,15 +20,33 @@ package role
 
 import "github.com/asgardeo/thunder/internal/system/utils"
 
-// AssigneeType represents the type of assignee entity.
+// AssigneeType represents the type of assignee principal.
 type AssigneeType string
 
+// Public assignee types accepted in requests and returned in responses.
 const (
-	// AssigneeTypeUser is the type for users.
+	// AssigneeTypeUser is the public type for user principals.
 	AssigneeTypeUser AssigneeType = "user"
-	// AssigneeTypeGroup is the type for groups.
+	// AssigneeTypeApp is the public type for application principals.
+	AssigneeTypeApp AssigneeType = "app"
+	// AssigneeTypeGroup is the public type for group principals.
 	AssigneeTypeGroup AssigneeType = "group"
 )
+
+// Internal assignee types used only for storage.
+const (
+	assigneeTypeEntity AssigneeType = "entity"
+)
+
+// IsEntityType reports whether t is an entity type (user, app) that maps
+// to the internal entity storage type.
+func (t AssigneeType) IsEntityType() bool {
+	switch t {
+	case AssigneeTypeUser, AssigneeTypeApp:
+		return true
+	}
+	return false
+}
 
 // AssignmentResponse represents an assignment of a role to a user or group.
 type AssignmentResponse struct {
@@ -49,6 +67,7 @@ type RoleSummaryResponse struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	OUID        string `json:"ouId"`
+	OUHandle    string `json:"ouHandle,omitempty"`
 	IsReadOnly  bool   `json:"isReadOnly"`
 }
 
@@ -58,6 +77,7 @@ type RoleResponse struct {
 	Name        string                `json:"name"`
 	Description string                `json:"description,omitempty"`
 	OUID        string                `json:"ouId"`
+	OUHandle    string                `json:"ouHandle,omitempty"`
 	Permissions []ResourcePermissions `json:"permissions"`
 }
 
@@ -76,6 +96,7 @@ type CreateRoleResponse struct {
 	Name        string                `json:"name"`
 	Description string                `json:"description,omitempty"`
 	OUID        string                `json:"ouId"`
+	OUHandle    string                `json:"ouHandle,omitempty"`
 	Permissions []ResourcePermissions `json:"permissions"`
 	Assignments []AssignmentResponse  `json:"assignments,omitempty"`
 }
@@ -134,6 +155,7 @@ type RoleWithPermissionsAndAssignments struct {
 	Name        string
 	Description string
 	OUID        string
+	OUHandle    string
 	Permissions []ResourcePermissions
 	Assignments []RoleAssignment
 }
@@ -157,6 +179,7 @@ type Role struct {
 	Name        string
 	Description string
 	OUID        string
+	OUHandle    string
 	IsReadOnly  bool
 }
 
@@ -166,6 +189,7 @@ type RoleWithPermissions struct {
 	Name        string
 	Description string
 	OUID        string
+	OUHandle    string
 	Permissions []ResourcePermissions
 }
 

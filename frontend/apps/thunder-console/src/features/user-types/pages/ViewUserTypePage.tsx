@@ -16,8 +16,9 @@
  * under the License.
  */
 
+import {UnsavedChangesBar} from '@thunder/components';
+import {useToast} from '@thunder/contexts';
 import {useLogger} from '@thunder/logger/react';
-import {useToast} from '@thunder/shared-contexts';
 import {
   Box,
   Stack,
@@ -37,8 +38,6 @@ import type {ReactNode, SyntheticEvent, JSX} from 'react';
 import {useState, useMemo, useCallback} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Link, useNavigate, useParams} from 'react-router';
-import CopyableId from '../../../components/CopyableId';
-import UnsavedChangesBar from '../../../components/UnsavedChangesBar';
 import useGetUserType from '../api/useGetUserType';
 import useUpdateUserType from '../api/useUpdateUserType';
 import EditGeneralSettings from '../components/edit-user-type/general-settings/EditGeneralSettings';
@@ -359,6 +358,7 @@ export default function ViewUserTypePage(): JSX.Element {
                   }
                 }}
                 size="small"
+                inputProps={{'aria-label': t('userTypes:edit.nameInputAriaLabel', 'User type name')}}
               />
             ) : (
               <>
@@ -381,9 +381,6 @@ export default function ViewUserTypePage(): JSX.Element {
             )}
           </Stack>
         </PageTitle.Header>
-        <PageTitle.SubHeader>
-          <CopyableId value={userType.id} copyLabel={t('userTypes:edit.copyId', 'Copy user type ID')} />
-        </PageTitle.SubHeader>
       </PageTitle>
 
       {/* Tabs */}

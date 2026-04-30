@@ -19,7 +19,6 @@
 import type {Edge, Node} from '@xyflow/react';
 import {useCallback} from 'react';
 import {useTranslation} from 'react-i18next';
-import {useNavigate} from 'react-router';
 import useCreateFlow from '@/features/flows/api/useCreateFlow';
 import useUpdateFlow from '@/features/flows/api/useUpdateFlow';
 import type {CreateFlowRequest, UpdateFlowRequest} from '@/features/flows/models/responses';
@@ -51,6 +50,8 @@ export interface UseFlowSaveProps {
   flowName: string;
   /** Flow handle. */
   flowHandle: string;
+  /** Flow type. */
+  flowType: string;
   /** Callback to show error notification. */
   showError: (message: string) => void;
   /** Callback to show success notification. */
@@ -82,13 +83,13 @@ const useFlowSave = (props: UseFlowSaveProps): UseFlowSaveReturn => {
     isFlowValid,
     flowName,
     flowHandle,
+    flowType,
     showError,
     showSuccess,
     setOpenValidationPanel,
   } = props;
 
   const {t} = useTranslation();
-  const navigate = useNavigate();
   const createFlow = useCreateFlow();
   const updateFlow = useUpdateFlow();
 
@@ -104,7 +105,7 @@ const useFlowSave = (props: UseFlowSaveProps): UseFlowSaveReturn => {
         return;
       }
 
-      const flowConfig = createFlowConfiguration(canvasData, flowName, flowHandle, 'AUTHENTICATION');
+      const flowConfig = createFlowConfiguration(canvasData, flowName, flowHandle, flowType);
       const errors = validateFlowGraph({nodes: flowConfig.nodes});
 
       if (errors.length > 0) {
@@ -123,11 +124,6 @@ const useFlowSave = (props: UseFlowSaveProps): UseFlowSaveReturn => {
           {
             onSuccess: () => {
               showSuccess(t('flows:core.loginFlowBuilder.success.flowUpdated'));
-              // Redirect to flows list after a short delay to show the success message
-              setTimeout(() => {
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                navigate('/flows');
-              }, 1500);
             },
             onError: () => {
               showError(t('flows:core.loginFlowBuilder.errors.saveFailed'));
@@ -139,11 +135,6 @@ const useFlowSave = (props: UseFlowSaveProps): UseFlowSaveReturn => {
         createFlow.mutate(flowConfig as CreateFlowRequest, {
           onSuccess: () => {
             showSuccess(t('flows:core.loginFlowBuilder.success.flowCreated'));
-            // Redirect to flows list after a short delay to show the success message
-            setTimeout(() => {
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              navigate('/flows');
-            }, 1500);
           },
           onError: () => {
             showError(t('flows:core.loginFlowBuilder.errors.saveFailed'));
@@ -157,11 +148,11 @@ const useFlowSave = (props: UseFlowSaveProps): UseFlowSaveReturn => {
       flowId,
       flowName,
       flowHandle,
+      flowType,
       showError,
       showSuccess,
       setOpenValidationPanel,
       t,
-      navigate,
       createFlow,
       updateFlow,
     ],

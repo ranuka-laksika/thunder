@@ -20,6 +20,19 @@ import {describe, it, expect} from 'vitest';
 import {FlowNodeType} from '../../models/flows';
 import generateFlowGraph from '../generateFlowGraph';
 
+interface Component {
+  id: string;
+  type?: string;
+  label?: string;
+  src?: string;
+  components?: Component[];
+}
+
+function getPromptComponents(result: ReturnType<typeof generateFlowGraph>): Component[] {
+  const promptNode = result.nodes.find((n) => n.type === FlowNodeType.PROMPT);
+  return (promptNode?.meta?.components as Component[]) ?? [];
+}
+
 describe('generateFlowGraph', () => {
   it('should generate a Basic Auth flow', () => {
     const request = generateFlowGraph({
@@ -30,16 +43,10 @@ describe('generateFlowGraph', () => {
 
     expect(request.handle).toBe('generated-basic-flow');
     expect(request.nodes).toHaveLength(5); // START, PROMPT, BASIC_EXEC, AUTH_ASSERT, END
-    // START, PROMPT, BASIC_EXEC, AUTH_ASSERT, END = 5 nodes
 
-    const promptNode = request.nodes.find((n) => n.type === FlowNodeType.PROMPT);
-    expect(promptNode).toBeDefined();
-    expect(promptNode?.meta?.components).toBeDefined();
-
-    // Check for username/password inputs
-    const components = promptNode?.meta?.components as {id: string}[];
-    const basicBlock = components.find((c) => c.id === 'block_basic');
-    expect(basicBlock).toBeDefined();
+    const components = getPromptComponents(request);
+    expect(components.find((c) => c.id === 'block_basic')).toBeDefined();
+    expect(components.find((c) => c.id === 'self_sign_up_link')).toBeDefined();
   });
 
   it('should generate a Passkey flow', () => {
@@ -51,16 +58,10 @@ describe('generateFlowGraph', () => {
 
     expect(request.handle).toBe('generated-passkey-flow');
 
-    const promptNode = request.nodes.find((n) => n.type === FlowNodeType.PROMPT);
-    const components = promptNode?.meta?.components as {id: string}[];
-
-    // Should have passkey block
-    const passkeyBlock = components.find((c) => c.id === 'block_passkey');
-    expect(passkeyBlock).toBeDefined();
-
-    // Should NOT have basic block
-    const basicBlock = components.find((c) => c.id === 'block_basic');
-    expect(basicBlock).toBeUndefined();
+    const components = getPromptComponents(request);
+    expect(components.find((c) => c.id === 'block_passkey')).toBeDefined();
+    expect(components.find((c) => c.id === 'block_basic')).toBeUndefined();
+    expect(components.find((c) => c.id === 'self_sign_up_link')).toBeDefined();
 
     // Executors
     const executors = request.nodes.filter((n) => n.type === FlowNodeType.TASK_EXECUTION);
@@ -78,12 +79,11 @@ describe('generateFlowGraph', () => {
 
     expect(request.handle).toBe('generated-basic-google-passkey-flow');
 
-    const promptNode = request.nodes.find((n) => n.type === FlowNodeType.PROMPT);
-    const components = promptNode?.meta?.components as {id: string}[];
-
+    const components = getPromptComponents(request);
     expect(components.find((c) => c.id === 'block_basic')).toBeDefined();
     expect(components.find((c) => c.id === 'block_passkey')).toBeDefined();
     expect(components.find((c) => c.id === 'block_social')).toBeDefined();
+    expect(components.find((c) => c.id === 'self_sign_up_link')).toBeDefined();
 
     // Executors
     const executors = request.nodes.filter((n) => n.type === FlowNodeType.TASK_EXECUTION);
@@ -102,6 +102,9 @@ describe('generateFlowGraph', () => {
     });
 
     expect(request.handle).toBe('generated-basic-github-flow');
+
+    const components = getPromptComponents(request);
+    expect(components.find((c) => c.id === 'self_sign_up_link')).toBeDefined();
 
     // Executors
     const executors = request.nodes.filter((n) => n.type === FlowNodeType.TASK_EXECUTION);
@@ -123,5 +126,75 @@ describe('generateFlowGraph', () => {
     expect(challengeNode).toBeDefined();
     expect(challengeNode?.properties?.relyingPartyId).toBe('my-app.com');
     expect(challengeNode?.properties?.relyingPartyName).toBe('My App');
+
+    const components = getPromptComponents(request);
+    expect(components.find((c) => c.id === 'self_sign_up_link')).toBeDefined();
+  });
+
+  it('should include a Self Sign Up Link as a top-level meta component for basic and passkey flows', () => {
+    const cases: Parameters<typeof generateFlowGraph>[0][] = [
+      {hasBasicAuth: true, hasPasskey: false, hasSmsOtp: false},
+      {hasBasicAuth: false, hasPasskey: true, hasSmsOtp: false},
+      {hasBasicAuth: true, hasPasskey: false, googleIdpId: 'google-id', hasSmsOtp: false},
+      {hasBasicAuth: true, hasPasskey: false, githubIdpId: 'github-id', hasSmsOtp: false},
+    ];
+
+    for (const options of cases) {
+      const request = generateFlowGraph(options);
+      const components = getPromptComponents(request);
+      const signUpLink = components.find((c) => c.id === 'self_sign_up_link');
+
+      expect(signUpLink).toBeDefined();
+      expect(signUpLink?.type).toBe('RICH_TEXT');
+      expect(signUpLink?.label).toContain('{{meta(application.sign_up_url)}}');
+    }
+  });
+
+  it('should not include a Self Sign Up Link for social-only flows', () => {
+    const request = generateFlowGraph({
+      hasBasicAuth: false,
+      hasPasskey: false,
+      googleIdpId: 'google-id',
+      hasSmsOtp: false,
+    });
+
+    const components = getPromptComponents(request);
+    expect(components.find((c) => c.id === 'self_sign_up_link')).toBeUndefined();
+  });
+
+  it('should place the Self Sign Up Link as the last top-level meta component', () => {
+    const request = generateFlowGraph({hasBasicAuth: true, hasPasskey: false, hasSmsOtp: false});
+    const components = getPromptComponents(request);
+
+    expect(components.length).toBeGreaterThan(0);
+    expect(components[components.length - 1].id).toBe('self_sign_up_link');
+  });
+
+  it('should place the Self Sign Up Link after all auth blocks (basic + passkey + social)', () => {
+    const request = generateFlowGraph({
+      hasBasicAuth: true,
+      hasPasskey: true,
+      googleIdpId: 'google-id',
+      hasSmsOtp: false,
+    });
+    const components = getPromptComponents(request);
+
+    const signUpLinkIndex = components.findIndex((c) => c.id === 'self_sign_up_link');
+    const basicBlockIndex = components.findIndex((c) => c.id === 'block_basic');
+    const passkeyBlockIndex = components.findIndex((c) => c.id === 'block_passkey');
+    const socialBlockIndex = components.findIndex((c) => c.id === 'block_social');
+
+    expect(signUpLinkIndex).toBeGreaterThan(basicBlockIndex);
+    expect(signUpLinkIndex).toBeGreaterThan(passkeyBlockIndex);
+    expect(signUpLinkIndex).toBeGreaterThan(socialBlockIndex);
+  });
+
+  it('should include the application logo as the first meta component', () => {
+    const request = generateFlowGraph({hasBasicAuth: true, hasPasskey: false, hasSmsOtp: false});
+    const components = getPromptComponents(request);
+
+    expect(components[0].id).toBe('image');
+    expect(components[0].type).toBe('IMAGE');
+    expect(components[0].src).toContain('application.logoUrl');
   });
 });

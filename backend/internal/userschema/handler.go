@@ -25,6 +25,7 @@ import (
 	serverconst "github.com/asgardeo/thunder/internal/system/constants"
 	"github.com/asgardeo/thunder/internal/system/error/apierror"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	"github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/internal/system/log"
 	sysutils "github.com/asgardeo/thunder/internal/system/utils"
 )
@@ -82,9 +83,11 @@ func (h *userSchemaHandler) HandleUserSchemaPostRequest(w http.ResponseWriter, r
 	createRequest, err := sysutils.DecodeJSONBody[CreateUserSchemaRequest](r)
 	if err != nil {
 		errResp := apierror.ErrorResponse{
-			Code:        ErrorInvalidRequestFormat.Code,
-			Message:     ErrorInvalidRequestFormat.Error,
-			Description: "Failed to parse request body",
+			Code:    ErrorInvalidRequestFormat.Code,
+			Message: ErrorInvalidRequestFormat.Error,
+			Description: core.I18nMessage{
+				Key:          "error.userschemaservice.create_schema_request_parse_failed_description",
+				DefaultValue: "Failed to parse request body"},
 		}
 
 		sysutils.WriteErrorResponse(w, http.StatusBadRequest, errResp)
@@ -93,7 +96,13 @@ func (h *userSchemaHandler) HandleUserSchemaPostRequest(w http.ResponseWriter, r
 
 	sanitizedRequest := h.sanitizeCreateUserSchemaRequest(*createRequest)
 
-	createdUserSchema, svcErr := h.userSchemaService.CreateUserSchema(ctx, sanitizedRequest)
+	createdUserSchema, svcErr := h.userSchemaService.CreateUserSchema(ctx, CreateUserSchemaRequestWithID{
+		Name:                  sanitizedRequest.Name,
+		OUID:                  sanitizedRequest.OUID,
+		AllowSelfRegistration: sanitizedRequest.AllowSelfRegistration,
+		SystemAttributes:      sanitizedRequest.SystemAttributes,
+		Schema:                sanitizedRequest.Schema,
+	})
 	if svcErr != nil {
 		handleError(w, svcErr)
 		return
@@ -250,9 +259,11 @@ func validateUpdateUserSchemaRequest(
 	updateRequest, err := sysutils.DecodeJSONBody[UpdateUserSchemaRequest](r)
 	if err != nil {
 		errResp := apierror.ErrorResponse{
-			Code:        ErrorInvalidRequestFormat.Code,
-			Message:     ErrorInvalidRequestFormat.Error,
-			Description: "Failed to parse request body",
+			Code:    ErrorInvalidRequestFormat.Code,
+			Message: ErrorInvalidRequestFormat.Error,
+			Description: core.I18nMessage{
+				Key:          "error.userschemaservice.update_schema_request_parse_failed_description",
+				DefaultValue: "Failed to parse request body"},
 		}
 		sysutils.WriteErrorResponse(w, http.StatusBadRequest, errResp)
 		return UpdateUserSchemaRequest{}, true
@@ -290,8 +301,8 @@ func (h *userSchemaHandler) sanitizeUpdateUserSchemaRequest(
 
 	if originalName != sanitizedName {
 		logger.Debug("Sanitized user schema name in update request",
-			log.String("original", log.MaskString(originalName)),
-			log.String("sanitized", log.MaskString(sanitizedName)))
+			log.MaskedString("original", originalName),
+			log.MaskedString("sanitized", sanitizedName))
 	}
 
 	return UpdateUserSchemaRequest{

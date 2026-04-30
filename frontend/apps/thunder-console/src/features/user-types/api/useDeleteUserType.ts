@@ -18,12 +18,12 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import UserTypeQueryKeys from '../constants/userTypeQueryKeys';
 
 /**
- * Custom React hook to delete a user schema (user type) from the Thunder server.
+ * Custom React hook to delete a user schema (user type) from the server.
  *
  * @returns TanStack Query mutation object for deleting user types
  */

@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import axios from 'axios';
 import config from '../config';
 
 export const NativeAuthSubmitType = {
@@ -296,23 +295,22 @@ export const initiateNativeAuthFlow = async (flowType: 'LOGIN' | 'REGISTRATION' 
         data.flowType = 'AUTHENTICATION';
     }
 
-    try {
-        const response = await axios.post(`${flowEndpoint}/execute`, data, {
-            headers,
-        });
+    const response = await fetch(`${flowEndpoint}/execute`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+    });
 
-        return { data: response.data };
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            const flowTypeName = flowType === 'REGISTRATION' ? 'registration' : 'authentication';
-            const message = error.response?.status === 400
-              ? `Error initiating native ${flowTypeName} request.`
-              : error.response?.data?.message || 'Server error occurred.';
-            throw new Error(message);
-        } else {
-            throw new Error('Unexpected error occurred.');
-        }
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as { message?: { defaultValue?: string } };
+        const flowTypeName = flowType === 'REGISTRATION' ? 'registration' : 'authentication';
+        const message = response.status === 400
+            ? `Error initiating native ${flowTypeName} request.`
+            : errorData?.message?.defaultValue || 'Server error occurred.';
+        throw new Error(message);
     }
+
+    return { data: await response.json() };
 };
 
 /**
@@ -348,90 +346,99 @@ export const initiateNativeAuthFlowWithData = async (flowType: 'LOGIN' | 'REGIST
         data.inputs = inputs;
     }
 
-    try {
-        const response = await axios.post(`${flowEndpoint}/execute`, data, {
-            headers,
-        });
+    const response = await fetch(`${flowEndpoint}/execute`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+    });
 
-        return { data: response.data };
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            const flowTypeName = flowType === 'REGISTRATION' ? 'registration' : 'authentication';
-            const message = error.response?.status === 400
-              ? `Error initiating native ${flowTypeName} request.`
-              : error.response?.data?.message || 'Server error occurred.';
-            throw new Error(message);
-        } else {
-            throw new Error('Unexpected error occurred.');
-        }
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as { message?: { defaultValue?: string } };
+        const flowTypeName = flowType === 'REGISTRATION' ? 'registration' : 'authentication';
+        const message = response.status === 400
+            ? `Error initiating native ${flowTypeName} request.`
+            : errorData?.message?.defaultValue || 'Server error occurred.';
+        throw new Error(message);
     }
+
+    return { data: await response.json() };
 };
 
 /**
  * Submits the user's selected authentication option when multiple options are available.
  * 
- * @param {string} flowId - The flow ID received from the initiateNativeAuth response.
+ * @param {string} executionId - The flow ID received from the initiateNativeAuth response.
  * @param {string} actionId - The ID of the selected authentication action.
  * @param {object} inputs - Optional input data to submit with the decision.
+ * @param {string} challengeToken - Optional challenge token for the current step, if required by the server.
  * @returns {Promise<object>} - A promise that resolves to the response data from the server.
  */
-export const submitAuthDecision = async (flowId: string, actionId: string, inputs?: Record<string, unknown>) => {
+export const submitAuthDecision = async (executionId: string, actionId: string, inputs?: Record<string, unknown>, challengeToken?: string) => {
     const headers = {
         'Content-Type': 'application/json'
     };
 
     const data: Record<string, unknown> = {
-        flowId: flowId,
+        executionId: executionId,
         action: actionId
     };
+
+    if (challengeToken) {
+        data.challengeToken = challengeToken;
+    }
 
     // Include inputs if provided
     if (inputs && Object.keys(inputs).length > 0) {
         data.inputs = inputs;
     }
 
-    try {
-        const response = await axios.post(`${flowEndpoint}/execute`, data, {
-            headers,
-        });
+    const response = await fetch(`${flowEndpoint}/execute`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+    });
 
-        return { data: response.data };
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            const message = error.response?.status === 400
-              ? 'Error processing authentication option.'
-              : error.response?.data?.message || 'Server error occurred.';
-            throw new Error(message);
-        } else {
-            throw new Error('Unexpected error occurred.');
-        }
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as { message?: { defaultValue?: string } };
+        const message = response.status === 400
+            ? 'Error processing authentication option.'
+            : errorData?.message?.defaultValue || 'Server error occurred.';
+        throw new Error(message);
     }
+
+    return { data: await response.json() };
 };
 
 /**
  * Submits the native authentication form data to the server.
  * 
- * @param {string} flowId - The flow ID received from the initiateNativeAuth response.
+ * @param {string} executionId - The flow ID received from the initiateNativeAuth response.
  * @param {object} payload - The payload containing the form data or other required information.
  * @param {string} action - Optional action ref to include in the request.
+ * @param {string} challengeToken - Optional challenge token for the current step, if required by the server.
  * @returns {Promise<object>} - A promise that resolves to the response data from the server.
  */
 export const submitNativeAuth = async (
-    flowId: string,
+    executionId: string,
     payload: Record<string, unknown> | NativeAuthSubmitPayload,
-    action?: string
+    action?: string,
+    challengeToken?: string
 ) => {
     const headers = {
         'Content-Type': 'application/json'
     };
 
     const data: Record<string, unknown> = {
-        flowId: flowId
+        executionId: executionId
     };
 
     // Include action if provided
     if (action) {
         data.action = action;
+    }
+
+    if (challengeToken) {
+        data.challengeToken = challengeToken;
     }
 
     if ('type' in payload) {
@@ -453,22 +460,21 @@ export const submitNativeAuth = async (
         data.inputs = payload;
     }
 
-    try {
-        const response = await axios.post(`${flowEndpoint}/execute`, data, {
-            headers,
-        });
+    const response = await fetch(`${flowEndpoint}/execute`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+    });
 
-        return { data: response.data };
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            const message = error.response?.status === 400
-              ? 'Login failed. Please check your credentials.'
-              : error.response?.data?.message || 'Server error occurred.';
-            throw new Error(message);
-        } else {
-            throw new Error('Unexpected error occurred.');
-        }
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as { message?: { defaultValue?: string } };
+        const message = response.status === 400
+            ? 'Login failed. Please check your credentials.'
+            : errorData?.message?.defaultValue || 'Server error occurred.';
+        throw new Error(message);
     }
+
+    return { data: await response.json() };
 }
 
 /**
@@ -494,15 +500,19 @@ export const exchangeCodeForToken = async (code: string, codeVerifier?: string |
         data.append('code_verifier', codeVerifier);
     }
 
-    try {
-        const response = await axios.post(tokenEndpoint, data, {
-            headers,
-        });
-        return response.data; // This will contain the access token
-    } catch (error) {
+    const response = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers,
+        body: data,
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
         console.error('Error exchanging code for token:', error);
-        throw error;
+        throw new Error('Failed to exchange code for token.');
     }
+
+    return response.json();
 };
 
 /**

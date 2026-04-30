@@ -16,8 +16,8 @@
  * under the License.
  */
 
+import {useToast} from '@thunder/contexts';
 import {useLogger} from '@thunder/logger/react';
-import {useToast} from '@thunder/shared-contexts';
 import {
   Box,
   Stack,
@@ -38,7 +38,6 @@ import {useState, useCallback, useMemo} from 'react';
 import type {ReactNode, SyntheticEvent, JSX} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Link, useNavigate, useParams} from 'react-router';
-import CopyableId from '../../../components/CopyableId';
 import useGetGroup from '../api/useGetGroup';
 import useUpdateGroup from '../api/useUpdateGroup';
 import EditGeneralSettings from '../components/edit-group/general-settings/EditGeneralSettings';
@@ -298,9 +297,6 @@ export default function GroupEditPage(): JSX.Element {
               </>
             )}
           </Stack>
-
-          {/* Group ID */}
-          <CopyableId value={group.id} copyLabel={t('groups:edit.general.sections.quickCopy.copyGroupId')} />
         </PageTitle.SubHeader>
       </PageTitle>
 

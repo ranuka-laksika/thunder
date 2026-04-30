@@ -41,7 +41,7 @@ func (_m *UserSchemaServiceInterfaceMock) EXPECT() *UserSchemaServiceInterfaceMo
 }
 
 // CreateUserSchema provides a mock function for the type UserSchemaServiceInterfaceMock
-func (_mock *UserSchemaServiceInterfaceMock) CreateUserSchema(ctx context.Context, request userschema.CreateUserSchemaRequest) (*userschema.UserSchema, *serviceerror.ServiceError) {
+func (_mock *UserSchemaServiceInterfaceMock) CreateUserSchema(ctx context.Context, request userschema.CreateUserSchemaRequestWithID) (*userschema.UserSchema, *serviceerror.ServiceError) {
 	ret := _mock.Called(ctx, request)
 
 	if len(ret) == 0 {
@@ -50,17 +50,17 @@ func (_mock *UserSchemaServiceInterfaceMock) CreateUserSchema(ctx context.Contex
 
 	var r0 *userschema.UserSchema
 	var r1 *serviceerror.ServiceError
-	if returnFunc, ok := ret.Get(0).(func(context.Context, userschema.CreateUserSchemaRequest) (*userschema.UserSchema, *serviceerror.ServiceError)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, userschema.CreateUserSchemaRequestWithID) (*userschema.UserSchema, *serviceerror.ServiceError)); ok {
 		return returnFunc(ctx, request)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, userschema.CreateUserSchemaRequest) *userschema.UserSchema); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, userschema.CreateUserSchemaRequestWithID) *userschema.UserSchema); ok {
 		r0 = returnFunc(ctx, request)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*userschema.UserSchema)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, userschema.CreateUserSchemaRequest) *serviceerror.ServiceError); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, userschema.CreateUserSchemaRequestWithID) *serviceerror.ServiceError); ok {
 		r1 = returnFunc(ctx, request)
 	} else {
 		if ret.Get(1) != nil {
@@ -77,20 +77,20 @@ type UserSchemaServiceInterfaceMock_CreateUserSchema_Call struct {
 
 // CreateUserSchema is a helper method to define mock.On call
 //   - ctx context.Context
-//   - request userschema.CreateUserSchemaRequest
+//   - request userschema.CreateUserSchemaRequestWithID
 func (_e *UserSchemaServiceInterfaceMock_Expecter) CreateUserSchema(ctx interface{}, request interface{}) *UserSchemaServiceInterfaceMock_CreateUserSchema_Call {
 	return &UserSchemaServiceInterfaceMock_CreateUserSchema_Call{Call: _e.mock.On("CreateUserSchema", ctx, request)}
 }
 
-func (_c *UserSchemaServiceInterfaceMock_CreateUserSchema_Call) Run(run func(ctx context.Context, request userschema.CreateUserSchemaRequest)) *UserSchemaServiceInterfaceMock_CreateUserSchema_Call {
+func (_c *UserSchemaServiceInterfaceMock_CreateUserSchema_Call) Run(run func(ctx context.Context, request userschema.CreateUserSchemaRequestWithID)) *UserSchemaServiceInterfaceMock_CreateUserSchema_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 userschema.CreateUserSchemaRequest
+		var arg1 userschema.CreateUserSchemaRequestWithID
 		if args[1] != nil {
-			arg1 = args[1].(userschema.CreateUserSchemaRequest)
+			arg1 = args[1].(userschema.CreateUserSchemaRequestWithID)
 		}
 		run(
 			arg0,
@@ -105,7 +105,7 @@ func (_c *UserSchemaServiceInterfaceMock_CreateUserSchema_Call) Return(userSchem
 	return _c
 }
 
-func (_c *UserSchemaServiceInterfaceMock_CreateUserSchema_Call) RunAndReturn(run func(ctx context.Context, request userschema.CreateUserSchemaRequest) (*userschema.UserSchema, *serviceerror.ServiceError)) *UserSchemaServiceInterfaceMock_CreateUserSchema_Call {
+func (_c *UserSchemaServiceInterfaceMock_CreateUserSchema_Call) RunAndReturn(run func(ctx context.Context, request userschema.CreateUserSchemaRequestWithID) (*userschema.UserSchema, *serviceerror.ServiceError)) *UserSchemaServiceInterfaceMock_CreateUserSchema_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -764,8 +764,8 @@ func (_c *UserSchemaServiceInterfaceMock_ValidateUser_Call) RunAndReturn(run fun
 }
 
 // ValidateUserUniqueness provides a mock function for the type UserSchemaServiceInterfaceMock
-func (_mock *UserSchemaServiceInterfaceMock) ValidateUserUniqueness(ctx context.Context, userType string, userAttributes json.RawMessage, identifyUser func(map[string]interface{}) (*string, error)) (bool, *serviceerror.ServiceError) {
-	ret := _mock.Called(ctx, userType, userAttributes, identifyUser)
+func (_mock *UserSchemaServiceInterfaceMock) ValidateUserUniqueness(ctx context.Context, userType string, userAttributes json.RawMessage, exists func(map[string]interface{}) (bool, error)) (bool, *serviceerror.ServiceError) {
+	ret := _mock.Called(ctx, userType, userAttributes, exists)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ValidateUserUniqueness")
@@ -773,16 +773,16 @@ func (_mock *UserSchemaServiceInterfaceMock) ValidateUserUniqueness(ctx context.
 
 	var r0 bool
 	var r1 *serviceerror.ServiceError
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, json.RawMessage, func(map[string]interface{}) (*string, error)) (bool, *serviceerror.ServiceError)); ok {
-		return returnFunc(ctx, userType, userAttributes, identifyUser)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, json.RawMessage, func(map[string]interface{}) (bool, error)) (bool, *serviceerror.ServiceError)); ok {
+		return returnFunc(ctx, userType, userAttributes, exists)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, json.RawMessage, func(map[string]interface{}) (*string, error)) bool); ok {
-		r0 = returnFunc(ctx, userType, userAttributes, identifyUser)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, json.RawMessage, func(map[string]interface{}) (bool, error)) bool); ok {
+		r0 = returnFunc(ctx, userType, userAttributes, exists)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, json.RawMessage, func(map[string]interface{}) (*string, error)) *serviceerror.ServiceError); ok {
-		r1 = returnFunc(ctx, userType, userAttributes, identifyUser)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, json.RawMessage, func(map[string]interface{}) (bool, error)) *serviceerror.ServiceError); ok {
+		r1 = returnFunc(ctx, userType, userAttributes, exists)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*serviceerror.ServiceError)
@@ -800,12 +800,12 @@ type UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call struct {
 //   - ctx context.Context
 //   - userType string
 //   - userAttributes json.RawMessage
-//   - identifyUser func(map[string]interface{}) (*string, error)
-func (_e *UserSchemaServiceInterfaceMock_Expecter) ValidateUserUniqueness(ctx interface{}, userType interface{}, userAttributes interface{}, identifyUser interface{}) *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call {
-	return &UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call{Call: _e.mock.On("ValidateUserUniqueness", ctx, userType, userAttributes, identifyUser)}
+//   - exists func(map[string]interface{}) (bool, error)
+func (_e *UserSchemaServiceInterfaceMock_Expecter) ValidateUserUniqueness(ctx interface{}, userType interface{}, userAttributes interface{}, exists interface{}) *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call {
+	return &UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call{Call: _e.mock.On("ValidateUserUniqueness", ctx, userType, userAttributes, exists)}
 }
 
-func (_c *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call) Run(run func(ctx context.Context, userType string, userAttributes json.RawMessage, identifyUser func(map[string]interface{}) (*string, error))) *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call {
+func (_c *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call) Run(run func(ctx context.Context, userType string, userAttributes json.RawMessage, exists func(map[string]interface{}) (bool, error))) *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -819,9 +819,9 @@ func (_c *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call) Run(run fu
 		if args[2] != nil {
 			arg2 = args[2].(json.RawMessage)
 		}
-		var arg3 func(map[string]interface{}) (*string, error)
+		var arg3 func(map[string]interface{}) (bool, error)
 		if args[3] != nil {
-			arg3 = args[3].(func(map[string]interface{}) (*string, error))
+			arg3 = args[3].(func(map[string]interface{}) (bool, error))
 		}
 		run(
 			arg0,
@@ -838,7 +838,7 @@ func (_c *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call) Return(b b
 	return _c
 }
 
-func (_c *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call) RunAndReturn(run func(ctx context.Context, userType string, userAttributes json.RawMessage, identifyUser func(map[string]interface{}) (*string, error)) (bool, *serviceerror.ServiceError)) *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call {
+func (_c *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call) RunAndReturn(run func(ctx context.Context, userType string, userAttributes json.RawMessage, exists func(map[string]interface{}) (bool, error)) (bool, *serviceerror.ServiceError)) *UserSchemaServiceInterfaceMock_ValidateUserUniqueness_Call {
 	_c.Call.Return(run)
 	return _c
 }

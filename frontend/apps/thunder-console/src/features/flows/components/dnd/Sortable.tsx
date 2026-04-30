@@ -16,7 +16,9 @@
  * under the License.
  */
 
+import {CollisionPriority} from '@dnd-kit/abstract';
 import {RestrictToVerticalAxis} from '@dnd-kit/abstract/modifiers';
+import {pointerIntersection} from '@dnd-kit/collision';
 import {useDragDropManager, useDragOperation} from '@dnd-kit/react';
 import {type UseSortableInput, useSortable} from '@dnd-kit/react/sortable';
 import {Box, type CSSProperties} from '@wso2/oxygen-ui';
@@ -29,21 +31,6 @@ import {
   useMemo,
   useSyncExternalStore,
 } from 'react';
-
-/**
- * Keyframe animation for drop indicator pulse effect.
- * Defined once as a constant to avoid recreation on every render.
- */
-const DROP_INDICATOR_KEYFRAMES = {
-  '@keyframes dropIndicatorPulse': {
-    '0%, 100%': {
-      opacity: 1,
-    },
-    '50%': {
-      opacity: 0.6,
-    },
-  },
-};
 
 interface DragOperationState {
   isDragging: boolean;
@@ -174,7 +161,8 @@ function Sortable({
   ...rest
 }: PropsWithChildren<SortableProps>) {
   const {ref, sortable, isDragging, isDropTarget} = useSortable({
-    collisionDetector,
+    collisionDetector: collisionDetector ?? pointerIntersection,
+    collisionPriority: CollisionPriority.High,
     handle: handleRef,
     id,
     index,
@@ -187,11 +175,7 @@ function Sortable({
   useDragOperationMonitorSetup();
 
   // This only re-renders when drag state actually changes, not on every mouse move
-  const {
-    isDragging: isDragActive,
-    sourceIndex: dragSourceIndex,
-    isReordering: isReorderingOperation,
-  } = useGlobalDragOperationState();
+  const {isDragging: isDragActive, isReordering: isReorderingOperation} = useGlobalDragOperationState();
 
   // Check if this sortable can accept the current draggable
   const canAcceptDrop = useMemo(() => {
@@ -201,102 +185,46 @@ function Sortable({
     return sortable.accepts(source);
   }, [source, sortable]);
 
-  const {showIndicatorBefore, showIndicatorAfter} = useMemo(() => {
-    // Determine if the drop indicator should be shown above this element
-    // Show indicator when: dragging is active, this element is the drop target,
-    // we're not the element being dragged, and the drop is valid
-    const showDropIndicator = isDragActive && isDropTarget && !isDragging && canAcceptDrop;
-
-    // Determine indicator position (before or after this element)
-    // For reordering: If dragging from below (higher index) to above (lower index), show indicator at top
-    // For new items from resource panel: Always show indicator at top (insert before)
-    const indicatorBefore =
-      showDropIndicator &&
-      (isReorderingOperation
-        ? typeof dragSourceIndex === 'number' && typeof index === 'number' && dragSourceIndex > index
-        : true); // For new items, always show before
-    const indicatorAfter =
-      showDropIndicator &&
-      isReorderingOperation &&
-      typeof dragSourceIndex === 'number' &&
-      typeof index === 'number' &&
-      dragSourceIndex < index;
-
-    return {showIndicatorBefore: indicatorBefore, showIndicatorAfter: indicatorAfter};
-  }, [isDragActive, isDropTarget, isDragging, isReorderingOperation, dragSourceIndex, index, canAcceptDrop]);
+  // Only show the drop indicator when a NEW item is being dragged in from
+  // the resource panel — not during reordering. Reordering relies on
+  // dnd-kit's built-in visual feedback (opacity change, snap-to-position).
+  const showDropIndicator = useMemo(
+    () => isDragActive && isDropTarget && !isDragging && canAcceptDrop && !isReorderingOperation,
+    [isDragActive, isDropTarget, isDragging, isReorderingOperation, canAcceptDrop],
+  );
 
   const elementStyle: CSSProperties = useMemo(
     () => ({
       opacity: isDragging ? 0.4 : 1,
       transform: isDragging ? 'scale(1.01)' : 'none',
-      transition: isDragging ? 'none' : 'all 0.2s ease',
+      // Disable transitions for ALL sortables while a drag is active so
+      // sibling elements snap into place instantly instead of lagging behind.
+      transition: isDragActive ? 'none' : 'opacity 0.2s ease, transform 0.2s ease',
     }),
-    [isDragging],
+    [isDragging, isDragActive],
   );
 
   const dropIndicatorStyles = useMemo(
     () => ({
       position: 'relative' as const,
-      marginTop: '4px',
-      marginBottom: '4px',
-      ...(showIndicatorBefore && {
+      paddingTop: '4px',
+      paddingBottom: '4px',
+      ...(showDropIndicator && {
         '&::before': {
           content: '""',
           position: 'absolute' as const,
           left: 0,
           right: 0,
-          top: '-8px',
-          height: '3px',
+          top: 0,
+          height: '2px',
           backgroundColor: 'primary.main',
-          borderRadius: '2px',
+          borderRadius: '1px',
           zIndex: 100,
-          pointerEvents: 'none' as const,
-          animation: 'dropIndicatorPulse 1s ease-in-out infinite',
-        },
-        '&::after': {
-          content: '""',
-          position: 'absolute' as const,
-          left: '-4px',
-          right: '-4px',
-          top: '-16px',
-          height: 'calc(8px * 2)',
-          backgroundColor: 'rgba(var(--mui-palette-primary-mainChannel) / 0.1)',
-          borderRadius: '4px',
-          zIndex: 99,
           pointerEvents: 'none' as const,
         },
       }),
-      ...(showIndicatorAfter &&
-        !showIndicatorBefore && {
-          '&::before': {
-            content: '""',
-            position: 'absolute' as const,
-            left: 0,
-            right: 0,
-            bottom: '-8px',
-            height: '3px',
-            backgroundColor: 'primary.main',
-            borderRadius: '2px',
-            zIndex: 100,
-            pointerEvents: 'none' as const,
-            animation: 'dropIndicatorPulse 1s ease-in-out infinite',
-          },
-          '&::after': {
-            content: '""',
-            position: 'absolute' as const,
-            left: '-4px',
-            right: '-4px',
-            bottom: '-16px',
-            height: 'calc(8px * 2)',
-            backgroundColor: 'rgba(var(--mui-palette-primary-mainChannel) / 0.1)',
-            borderRadius: '4px',
-            zIndex: 99,
-            pointerEvents: 'none' as const,
-          },
-        }),
-      ...DROP_INDICATOR_KEYFRAMES,
     }),
-    [showIndicatorBefore, showIndicatorAfter],
+    [showDropIndicator],
   );
 
   return (

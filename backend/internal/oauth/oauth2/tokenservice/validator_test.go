@@ -19,6 +19,8 @@
 package tokenservice
 
 import (
+	"github.com/asgardeo/thunder/internal/system/i18n/core"
+
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -28,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	appmodel "github.com/asgardeo/thunder/internal/application/model"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	"github.com/asgardeo/thunder/tests/mocks/jose/jwtmock"
@@ -44,7 +46,7 @@ type TokenValidatorTestSuite struct {
 	suite.Suite
 	mockJWTService *jwtmock.JWTServiceInterfaceMock
 	validator      *tokenValidator
-	oauthApp       *appmodel.OAuthAppConfigProcessedDTO
+	oauthApp       *inboundmodel.OAuthClient
 }
 
 func TestTokenValidatorTestSuite(t *testing.T) {
@@ -52,7 +54,8 @@ func TestTokenValidatorTestSuite(t *testing.T) {
 }
 
 func (suite *TokenValidatorTestSuite) SetupTest() {
-	// Initialize Thunder Runtime for tests
+	config.ResetThunderRuntime()
+
 	testConfig := &config.Config{
 		JWT: config.JWTConfig{
 			Issuer:         "https://thunder.io",
@@ -68,7 +71,7 @@ func (suite *TokenValidatorTestSuite) SetupTest() {
 		jwtService: suite.mockJWTService,
 	}
 
-	suite.oauthApp = &appmodel.OAuthAppConfigProcessedDTO{
+	suite.oauthApp = &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 }
@@ -137,9 +140,9 @@ func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_Success_BasicToke
 
 func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_Success_WithTokenConfig() {
 	// App with token config should still validate using Thunder-level issuer from config
-	customOAuthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	customOAuthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token:    &appmodel.OAuthTokenConfig{},
+		Token:    &inboundmodel.OAuthTokenConfig{},
 	}
 
 	now := time.Now().Unix()
@@ -284,10 +287,15 @@ func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_Error_InvalidSign
 
 	suite.mockJWTService.On("VerifyJWTSignature", token).
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ServerErrorType,
-			Code:             "SIGNATURE_VERIFICATION_FAILED",
-			Error:            "Signature verification failed",
-			ErrorDescription: "The JWT signature verification failed",
+			Type: serviceerror.ServerErrorType,
+			Code: "SIGNATURE_VERIFICATION_FAILED",
+			Error: core.I18nMessage{
+				Key: "error.test.signature_verification_failed", DefaultValue: "Signature verification failed",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key:          "error.test.the_jwt_signature_verification_failed",
+				DefaultValue: "The JWT signature verification failed",
+			},
 		})
 
 	result, err := suite.validator.ValidateSubjectToken(token, suite.oauthApp)
@@ -393,10 +401,10 @@ func (suite *TokenValidatorTestSuite) TestVerifyTokenSignatureByIssuer_Success_T
 
 func (suite *TokenValidatorTestSuite) TestVerifyTokenSignatureByIssuer_Success_WithTokenConfig() {
 	// App with token config should still use Thunder-level issuer for signature verification
-	customApp := &appmodel.OAuthAppConfigProcessedDTO{
+	customApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{},
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{},
 		},
 	}
 	token := testJWTTokenString
@@ -414,10 +422,14 @@ func (suite *TokenValidatorTestSuite) TestVerifyTokenSignatureByIssuer_Error_Sig
 
 	suite.mockJWTService.On("VerifyJWTSignature", token).
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ServerErrorType,
-			Code:             "SIGNATURE_MISMATCH",
-			Error:            "Signature mismatch",
-			ErrorDescription: "The JWT signature does not match",
+			Type: serviceerror.ServerErrorType,
+			Code: "SIGNATURE_MISMATCH",
+			Error: core.I18nMessage{
+				Key: "error.test.signature_mismatch", DefaultValue: "Signature mismatch",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key: "error.test.the_jwt_signature_does_not_match", DefaultValue: "The JWT signature does not match",
+			},
 		})
 
 	err := suite.validator.verifyTokenSignatureByIssuer(token, "https://thunder.io", suite.oauthApp)
@@ -484,10 +496,10 @@ func (suite *TokenValidatorTestSuite) TestFederationScenario_FailFastOnUntrusted
 
 func (suite *TokenValidatorTestSuite) TestFederationScenario_OnlyThunderIssuerIsValid() {
 	// Only the Thunder-level issuer from config is accepted; app-level issuers are no longer supported
-	appWithTokenConfig := &appmodel.OAuthAppConfigProcessedDTO{
+	appWithTokenConfig := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{},
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{},
 		},
 	}
 
@@ -596,6 +608,87 @@ func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_EdgeCase_VeryLong
 	suite.mockJWTService.AssertExpectations(suite.T())
 }
 
+// ============================================================================
+// §1 — Auth-assertion multi-aud rejection test
+// ============================================================================
+
+func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_AuthAssertion_RejectsMultiAud() {
+	// Auth assertions with more than one audience element must be rejected (defense-in-depth;
+	// auth assertions are a narrow control surface).
+	now := time.Now().Unix()
+	claims := map[string]interface{}{
+		"sub":       "user123",
+		"iss":       "https://thunder.io",
+		"aud":       []interface{}{"a", "b"},
+		"exp":       float64(now + 3600),
+		"assurance": "high", // marks this as an auth assertion
+	}
+	token := suite.createTestJWT(claims)
+
+	suite.mockJWTService.On("VerifyJWTSignature", token).Return(nil)
+
+	result, err := suite.validator.ValidateSubjectToken(token, suite.oauthApp)
+
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), result)
+	assert.Contains(suite.T(), err.Error(), "auth assertion must have a single audience")
+	suite.mockJWTService.AssertExpectations(suite.T())
+}
+
+// ============================================================================
+// §1 — Non-assertion multi-aud tests
+// ============================================================================
+
+func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_NonAssertion_AcceptsMultiAud() {
+	// Non-assertion subject tokens with a multi-value aud are accepted when at least one element
+	// matches the requesting app's AppID or the configured default audience.
+	now := time.Now().Unix()
+	claims := map[string]interface{}{
+		"sub": "user123",
+		"iss": "https://thunder.io",
+		"aud": []interface{}{"x", "y"},
+		"exp": float64(now + 3600),
+	}
+	token := suite.createTestJWT(claims)
+
+	oauthAppWithID := &inboundmodel.OAuthClient{
+		ClientID: "test-client",
+		AppID:    "x", // Matches one element of the aud array.
+	}
+
+	suite.mockJWTService.On("VerifyJWTSignature", token).Return(nil)
+
+	result, err := suite.validator.ValidateSubjectToken(token, oauthAppWithID)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), result)
+	assert.Equal(suite.T(), []string{"x", "y"}, result.Aud)
+	suite.mockJWTService.AssertExpectations(suite.T())
+}
+
+func (suite *TokenValidatorTestSuite) TestValidateSubjectToken_NonAssertion_ToleratesMalformedAud() {
+	// Non-assertion subject tokens with a malformed aud (wrong type) do NOT return an error;
+	// Aud is set to nil/empty for legacy tolerance. Downstream code treats nil Aud as
+	// "no declared audience".
+	now := time.Now().Unix()
+	claims := map[string]interface{}{
+		"sub": "user123",
+		"iss": "https://thunder.io",
+		"aud": 123, // numeric — wrong type, silently ignored
+		"exp": float64(now + 3600),
+	}
+	token := suite.createTestJWT(claims)
+
+	suite.mockJWTService.On("VerifyJWTSignature", token).Return(nil)
+
+	result, err := suite.validator.ValidateSubjectToken(token, suite.oauthApp)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), result)
+	assert.Empty(suite.T(), result.Aud)
+	suite.mockJWTService.AssertExpectations(suite.T())
+}
+
 func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Success_Basic() {
 	now := time.Now().Unix()
 	claims := map[string]interface{}{
@@ -619,7 +712,7 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Success_Basic() {
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "user123", result.Sub)
-	assert.Equal(suite.T(), testAppID, result.Aud)
+	assert.Equal(suite.T(), []string{testAppID}, result.Audiences)
 	assert.Equal(suite.T(), "authorization_code", result.GrantType)
 	assert.Equal(suite.T(), []string{"read", "write"}, result.Scopes)
 	assert.Equal(suite.T(), "test-cache-id", result.AttributeCacheID)
@@ -680,10 +773,15 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Error_InvalidSign
 
 	suite.mockJWTService.On("VerifyJWT", token, "", "").
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ServerErrorType,
-			Code:             "SIGNATURE_VERIFICATION_FAILED",
-			Error:            "Signature verification failed",
-			ErrorDescription: "The JWT signature verification failed",
+			Type: serviceerror.ServerErrorType,
+			Code: "SIGNATURE_VERIFICATION_FAILED",
+			Error: core.I18nMessage{
+				Key: "error.test.signature_verification_failed", DefaultValue: "Signature verification failed",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key:          "error.test.the_jwt_signature_verification_failed",
+				DefaultValue: "The JWT signature verification failed",
+			},
 		})
 
 	result, err := suite.validator.ValidateRefreshToken(token, "test-client")
@@ -700,10 +798,14 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Error_InvalidJWTF
 	// VerifyJWT is called first and should fail for invalid format
 	suite.mockJWTService.On("VerifyJWT", token, "", "").
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ClientErrorType,
-			Code:             "INVALID_JWT_FORMAT",
-			Error:            "Invalid JWT format",
-			ErrorDescription: "The JWT format is invalid",
+			Type: serviceerror.ClientErrorType,
+			Code: "INVALID_JWT_FORMAT",
+			Error: core.I18nMessage{
+				Key: "error.test.invalid_jwt_format", DefaultValue: "Invalid JWT format",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key: "error.test.the_jwt_format_is_invalid", DefaultValue: "The JWT format is invalid",
+			},
 		})
 
 	result, err := suite.validator.ValidateRefreshToken(token, "test-client")
@@ -722,10 +824,14 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Error_DecodeFailu
 	// VerifyJWT is called first and should fail for invalid base64
 	suite.mockJWTService.On("VerifyJWT", token, "", "").
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ServerErrorType,
-			Code:             "INVALID_JWT_SIGNATURE",
-			Error:            "Invalid JWT signature",
-			ErrorDescription: "The JWT signature is invalid",
+			Type: serviceerror.ServerErrorType,
+			Code: "INVALID_JWT_SIGNATURE",
+			Error: core.I18nMessage{
+				Key: "error.test.invalid_jwt_signature", DefaultValue: "Invalid JWT signature",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key: "error.test.the_jwt_signature_is_invalid", DefaultValue: "The JWT signature is invalid",
+			},
 		})
 
 	result, err := suite.validator.ValidateRefreshToken(token, "test-client")
@@ -781,10 +887,12 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Error_ExpiredToke
 	// VerifyJWT should catch expired tokens
 	suite.mockJWTService.On("VerifyJWT", token, "", "").
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ClientErrorType,
-			Code:             "TOKEN_EXPIRED",
-			Error:            "Token has expired",
-			ErrorDescription: "The token has expired",
+			Type:  serviceerror.ClientErrorType,
+			Code:  "TOKEN_EXPIRED",
+			Error: core.I18nMessage{Key: "error.test.token_has_expired", DefaultValue: "Token has expired"},
+			ErrorDescription: core.I18nMessage{
+				Key: "error.test.the_token_has_expired", DefaultValue: "The token has expired",
+			},
 		})
 
 	result, err := suite.validator.ValidateRefreshToken(token, "test-client")
@@ -814,10 +922,14 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Error_NotYetValid
 	// VerifyJWT should catch not yet valid tokens
 	suite.mockJWTService.On("VerifyJWT", token, "", "").
 		Return(&serviceerror.ServiceError{
-			Type:             serviceerror.ClientErrorType,
-			Code:             "TOKEN_NOT_VALID_YET",
-			Error:            "Token not valid yet",
-			ErrorDescription: "Token not valid yet (nbf)",
+			Type: serviceerror.ClientErrorType,
+			Code: "TOKEN_NOT_VALID_YET",
+			Error: core.I18nMessage{
+				Key: "error.test.token_not_valid_yet", DefaultValue: "Token not valid yet",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key: "error.test.token_not_valid_yet_nbf", DefaultValue: "Token not valid yet (nbf)",
+			},
 		})
 
 	result, err := suite.validator.ValidateRefreshToken(token, "test-client")
@@ -972,7 +1084,7 @@ func (suite *TokenValidatorTestSuite) TestValidateRefreshToken_Success_WithClaim
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "user123", result.Sub)
-	assert.Equal(suite.T(), testAppID, result.Aud)
+	assert.Equal(suite.T(), []string{testAppID}, result.Audiences)
 	assert.Equal(suite.T(), "authorization_code", result.GrantType)
 	assert.Equal(suite.T(), []string{"read", "write"}, result.Scopes)
 	assert.Equal(suite.T(), "test-cache-id", result.AttributeCacheID)
@@ -1009,7 +1121,7 @@ func (suite *TokenValidatorTestSuite) TestValidateAuthAssertion_Success_WithAppI
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "user123", result.Sub)
 	assert.Equal(suite.T(), "https://thunder.io", result.Iss)
-	assert.Equal(suite.T(), testAppID, result.Aud)
+	assert.Equal(suite.T(), []string{testAppID}, result.Aud)
 	assert.Equal(suite.T(), []string{"read:documents", "write:documents"}, result.Scopes)
 	assert.Equal(suite.T(), "person", result.UserAttributes["userType"])
 	suite.mockJWTService.AssertExpectations(suite.T())
@@ -1177,7 +1289,7 @@ func (suite *TokenValidatorTestSuite) TestValidateAuthAssertion_Success_WithDefa
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "user123", result.Sub)
 	assert.Equal(suite.T(), "https://thunder.io", result.Iss)
-	assert.Equal(suite.T(), defaultAudience, result.Aud)
+	assert.Equal(suite.T(), []string{defaultAudience}, result.Aud)
 	suite.mockJWTService.AssertExpectations(suite.T())
 }
 
@@ -1265,10 +1377,12 @@ func (suite *TokenValidatorTestSuite) TestValidateAuthAssertion_Error_InvalidSig
 	suite.oauthApp.AppID = testAppID
 
 	suite.mockJWTService.On("VerifyJWTSignature", token).Return(&serviceerror.ServiceError{
-		Type:             serviceerror.ServerErrorType,
-		Code:             "INVALID_SIGNATURE",
-		Error:            "Invalid signature",
-		ErrorDescription: "The JWT signature is invalid",
+		Type:  serviceerror.ServerErrorType,
+		Code:  "INVALID_SIGNATURE",
+		Error: core.I18nMessage{Key: "error.test.invalid_signature", DefaultValue: "Invalid signature"},
+		ErrorDescription: core.I18nMessage{
+			Key: "error.test.the_jwt_signature_is_invalid", DefaultValue: "The JWT signature is invalid",
+		},
 	})
 
 	result, err := suite.validator.ValidateSubjectToken(token, suite.oauthApp)
@@ -1368,7 +1482,7 @@ func (suite *TokenValidatorTestSuite) TestValidateAuthAssertion_Error_InvalidAud
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), result)
-	assert.Contains(suite.T(), err.Error(), "claim aud is not a string")
+	assert.Contains(suite.T(), err.Error(), "claim aud has unsupported type")
 	suite.mockJWTService.AssertExpectations(suite.T())
 }
 
@@ -1621,7 +1735,7 @@ func (suite *TokenValidatorTestSuite) TestValidateAccessToken_Success() {
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "user123", result.Sub)
 	assert.Equal(suite.T(), "https://thunder.io", result.Iss)
-	assert.Equal(suite.T(), "test-app", result.Aud)
+	assert.Equal(suite.T(), []string{"test-app"}, result.Aud)
 	assert.Equal(suite.T(), "test-client", result.ClientID)
 	assert.Equal(suite.T(), "authorization_code", result.GrantType)
 	assert.Equal(suite.T(), []string{"openid", "profile"}, result.Scopes)
@@ -1647,7 +1761,7 @@ func (suite *TokenValidatorTestSuite) TestValidateAccessToken_Success_MinClaims(
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "user123", result.Sub)
 	assert.Equal(suite.T(), "https://thunder.io", result.Iss)
-	assert.Equal(suite.T(), "test-app", result.Aud)
+	assert.Equal(suite.T(), []string{"test-app"}, result.Aud)
 	assert.Equal(suite.T(), "test-client", result.ClientID)
 	assert.Empty(suite.T(), result.GrantType)
 	assert.Empty(suite.T(), result.Scopes)
@@ -1661,7 +1775,7 @@ func (suite *TokenValidatorTestSuite) TestValidateAccessToken_Error_VerifyFails(
 		Return(&serviceerror.ServiceError{
 			Type:  serviceerror.ServerErrorType,
 			Code:  "JWT-1004",
-			Error: "Invalid token signature",
+			Error: core.I18nMessage{Key: "error.test.invalid_token_signature", DefaultValue: "Invalid token signature"},
 		})
 
 	result, err := suite.validator.ValidateAccessToken(token)

@@ -16,7 +16,8 @@
  * under the License.
  */
 
-import {useGetThemes, useGetTheme, type ThemeListItem, type Theme} from '@thunder/shared-design';
+import {generateIconSuggestions, ResourceAvatar} from '@thunder/components';
+import {useGetThemes, useGetTheme, type ThemeListItem, type Theme} from '@thunder/design';
 import {
   Typography,
   Stack,
@@ -33,8 +34,6 @@ import {Palette, Shuffle, Plus} from '@wso2/oxygen-ui-icons-react';
 import type {JSX} from 'react';
 import {useState, useMemo, useEffect} from 'react';
 import {useTranslation} from 'react-i18next';
-import ResourceAvatar from '../../../../components/ResourceAvatar';
-import generateIconSuggestions from '../../../../utils/generateIconSuggestions';
 import ThemeThumbnail from '../../../design/components/themes/ThemeThumbnail';
 
 /**
@@ -273,7 +272,7 @@ export default function ConfigureDesign({
   }
 
   return (
-    <Stack direction="column" spacing={4}>
+    <Stack direction="column" spacing={4} data-testid="application-configure-design">
       <Stack direction="column" spacing={1}>
         <Typography variant="h1" gutterBottom>
           {t('applications:onboarding.configure.design.title')}

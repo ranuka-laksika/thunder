@@ -23,6 +23,14 @@ import {describe, it, expect, vi, beforeEach} from 'vitest';
 import type {ApiUserSchema, ApiError} from '../../types/user-types';
 import ViewUserTypePage from '../ViewUserTypePage';
 
+vi.mock('@thunder/components', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/components')>();
+  return {
+    ...actual,
+    CopyableId: vi.fn(({value}: {value: string}) => <span data-testid="copyable-id">{value}</span>),
+  };
+});
+
 const mockNavigate = vi.fn();
 const mockRefetch = vi.fn();
 const mockUpdateMutateAsync = vi.fn();
@@ -69,8 +77,8 @@ vi.mock('../../api/useDeleteUserType', () => ({
 }));
 
 // Mock OrganizationUnitTreePicker
-vi.mock('../../../organization-units/components/OrganizationUnitTreePicker', () => ({
-  default: ({value, onChange}: {value: string; onChange: (id: string) => void}) => (
+vi.mock('@thunder/configure-organization-units', () => ({
+  OrganizationUnitTreePicker: ({value, onChange}: {value: string; onChange: (id: string) => void}) => (
     <div data-testid="ou-tree-picker">
       <span data-testid="ou-value">{value || ''}</span>
       <button type="button" data-testid="select-ou-root" onClick={() => onChange('root-ou')}>
@@ -84,8 +92,8 @@ vi.mock('../../../organization-units/components/OrganizationUnitTreePicker', () 
 }));
 
 // Mock shared-contexts (useToast)
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useToast: () => ({showToast: mockShowToast}),
@@ -224,7 +232,7 @@ describe('ViewUserTypePage', () => {
       render(<ViewUserTypePage />);
 
       expect(screen.getByText('Employee Schema')).toBeInTheDocument();
-      expect(screen.getByText('schema-123')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('schema-123')).toBeInTheDocument();
     });
 
     it('displays General and Schema tabs', () => {
@@ -250,7 +258,7 @@ describe('ViewUserTypePage', () => {
       await user.click(editNameButton);
 
       // Should show a text field with the current name
-      const nameInput = screen.getByRole('textbox');
+      const nameInput = screen.getByRole('textbox', {name: /user type name/i});
       expect(nameInput).toHaveValue('Employee Schema');
 
       // Edit the name
@@ -767,7 +775,7 @@ describe('ViewUserTypePage', () => {
       const editNameButton = screen.getByRole('button', {name: /edit user type name/i});
       await user.click(editNameButton);
 
-      const nameInput = screen.getByRole('textbox');
+      const nameInput = screen.getByRole('textbox', {name: /user type name/i});
       await user.clear(nameInput);
       await user.type(nameInput, 'New Name{Enter}');
 
@@ -841,7 +849,7 @@ describe('ViewUserTypePage', () => {
       const editNameButton = screen.getByRole('button', {name: /edit user type name/i});
       await user.click(editNameButton);
 
-      const nameInput = screen.getByRole('textbox');
+      const nameInput = screen.getByRole('textbox', {name: /user type name/i});
       await user.clear(nameInput);
       await user.type(nameInput, 'Updated Schema{Enter}');
 
@@ -1233,7 +1241,7 @@ describe('ViewUserTypePage', () => {
       // Edit name to trigger save bar (since OU is empty, no change to OU)
       const editNameButton = screen.getByRole('button', {name: /edit user type name/i});
       await user.click(editNameButton);
-      const nameInput = screen.getByRole('textbox');
+      const nameInput = screen.getByRole('textbox', {name: /user type name/i});
       await user.clear(nameInput);
       await user.type(nameInput, 'New Name{Enter}');
 
@@ -1611,7 +1619,7 @@ describe('ViewUserTypePage', () => {
       const editNameButton = screen.getByRole('button', {name: /edit user type name/i});
       await user.click(editNameButton);
 
-      const nameInput = screen.getByRole('textbox');
+      const nameInput = screen.getByRole('textbox', {name: /user type name/i});
       await user.clear(nameInput);
       await user.type(nameInput, 'Temp Name{Escape}');
 
@@ -1632,7 +1640,7 @@ describe('ViewUserTypePage', () => {
       await user.click(editNameButton);
 
       // Verify input is shown, then blur without changing the name
-      expect(screen.getByRole('textbox')).toBeInTheDocument();
+      expect(screen.getByRole('textbox', {name: /user type name/i})).toBeInTheDocument();
       await user.tab();
 
       // No unsaved changes bar should appear

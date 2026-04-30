@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	appmodel "github.com/asgardeo/thunder/internal/application/model"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/granthandlers"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/model"
@@ -43,7 +43,7 @@ type TokenServiceInterface interface {
 	ProcessTokenRequest(
 		ctx context.Context,
 		tokenRequest *model.TokenRequest,
-		oauthApp *appmodel.OAuthAppConfigProcessedDTO,
+		oauthApp *inboundmodel.OAuthClient,
 	) (*model.TokenResponse, *model.ErrorResponse)
 }
 
@@ -74,7 +74,7 @@ func newTokenService(
 func (ts *tokenService) ProcessTokenRequest(
 	ctx context.Context,
 	tokenRequest *model.TokenRequest,
-	oauthApp *appmodel.OAuthAppConfigProcessedDTO,
+	oauthApp *inboundmodel.OAuthClient,
 ) (*model.TokenResponse, *model.ErrorResponse) {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "TokenService"))
 
@@ -209,10 +209,14 @@ func (ts *tokenService) ProcessTokenRequest(
 			}
 		}
 
+		refreshAudiences := tokenRespDTO.AccessToken.Audiences
+		if len(tokenRespDTO.AccessToken.OriginalAudiences) > 0 {
+			refreshAudiences = tokenRespDTO.AccessToken.OriginalAudiences
+		}
 		refreshTokenError := refreshGrantHandlerTyped.IssueRefreshToken(
 			ctx,
 			tokenRespDTO, oauthApp,
-			tokenRespDTO.AccessToken.Subject, tokenRespDTO.AccessToken.Audience,
+			tokenRespDTO.AccessToken.Subject, refreshAudiences,
 			grantTypeStr, tokenRespDTO.AccessToken.Scopes, tokenRespDTO.AccessToken.ClaimsRequest,
 			tokenRespDTO.AccessToken.ClaimsLocales, tokenRespDTO.AccessToken.AttributeCacheID,
 		)

@@ -259,9 +259,9 @@ func (ts *GoogleRegistrationGroupRoleTestSuite) SetupSuite() {
 
 	// Create test group
 	testGroup := testutils.Group{
-		Name:               "Provisioned Users Group",
-		Description:        "Group for testing user provisioning with group assignment",
-		OUID:               googleRegGroupRoleTestOUID,
+		Name:        "Provisioned Users Group",
+		Description: "Group for testing user provisioning with group assignment",
+		OUID:        googleRegGroupRoleTestOUID,
 	}
 	groupID, err := testutils.CreateGroup(testGroup)
 	ts.Require().NoError(err, "Failed to create test group")
@@ -270,10 +270,10 @@ func (ts *GoogleRegistrationGroupRoleTestSuite) SetupSuite() {
 
 	// Create test role
 	testRole := testutils.Role{
-		Name:               "Provisioned Users Role",
-		Description:        "Role for testing user provisioning with role assignment",
-		OUID:               googleRegGroupRoleTestOUID,
-		Permissions:        []testutils.ResourcePermissions{},
+		Name:        "Provisioned Users Role",
+		Description: "Role for testing user provisioning with role assignment",
+		OUID:        googleRegGroupRoleTestOUID,
+		Permissions: []testutils.ResourcePermissions{},
 	}
 	roleID, err := testutils.CreateRole(testRole)
 	ts.Require().NoError(err, "Failed to create test role")
@@ -348,6 +348,7 @@ func (ts *GoogleRegistrationGroupRoleTestSuite) SetupSuite() {
 	googleRegGroupRoleTestApp.RegistrationFlowID = flowID
 
 	// Create test application
+	googleRegGroupRoleTestApp.OUID = googleRegGroupRoleTestOUID
 	appID, err := testutils.CreateApplication(googleRegGroupRoleTestApp)
 	if err != nil {
 		ts.T().Fatalf("Failed to create test application during setup: %v", err)
@@ -436,7 +437,7 @@ func (ts *GoogleRegistrationGroupRoleTestSuite) TestGoogleRegistrationWithGroupA
 	// Verify flow status and type
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECT")
-	ts.Require().NotEmpty(flowStep.FlowID, "Flow ID should not be empty")
+	ts.Require().NotEmpty(flowStep.ExecutionID, "Execution ID should not be empty")
 
 	redirectURLStr := flowStep.Data.RedirectURL
 	ts.Require().NotEmpty(redirectURLStr, "Redirect URL should not be empty")
@@ -448,7 +449,7 @@ func (ts *GoogleRegistrationGroupRoleTestSuite) TestGoogleRegistrationWithGroupA
 
 	// Step 3: Complete the flow
 	inputs := map[string]string{"code": authCode}
-	completeFlowStep, err := common.CompleteFlow(flowStep.FlowID, inputs, "")
+	completeFlowStep, err := common.CompleteFlow(flowStep.ExecutionID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete flow")
 
 	// Verify flow completion

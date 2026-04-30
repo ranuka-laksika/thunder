@@ -197,7 +197,8 @@ func (rh *roleHandler) HandleRoleAssignmentsGetRequest(w http.ResponseWriter, r 
 
 	// Parse optional type parameter to filter assignments by assignee type.
 	assigneeType := r.URL.Query().Get("type")
-	if assigneeType != "" && assigneeType != string(AssigneeTypeUser) && assigneeType != string(AssigneeTypeGroup) {
+	if assigneeType != "" && assigneeType != string(AssigneeTypeUser) && assigneeType != string(AssigneeTypeGroup) &&
+		assigneeType != string(AssigneeTypeApp) {
 		handleError(w, &ErrorInvalidAssigneeType)
 		return
 	}
@@ -464,6 +465,7 @@ func (rh *roleHandler) toHTTPCreateRoleResponse(role *RoleWithPermissionsAndAssi
 		Name:        role.Name,
 		Description: role.Description,
 		OUID:        role.OUID,
+		OUHandle:    role.OUHandle,
 		Permissions: role.Permissions,
 		Assignments: httpAssignments,
 	}

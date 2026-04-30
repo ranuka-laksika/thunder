@@ -53,9 +53,9 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock useFlowBuilderCore
+// Mock useUIPanelState
 const mockSetIsResourcePanelOpen = vi.fn();
-vi.mock('../../../hooks/useFlowBuilderCore', () => ({
+vi.mock('../../../hooks/useUIPanelState', () => ({
   default: () => ({
     setIsResourcePanelOpen: mockSetIsResourcePanelOpen,
   }),
@@ -294,23 +294,14 @@ describe('ResourcePanel', () => {
   });
 
   describe('Navigation', () => {
-    it('should navigate to flows page when back button is clicked', () => {
+    it('should not render back button in panel header (moved to top bar)', () => {
       render(<ResourcePanel resources={createMockResources()} onAdd={vi.fn()} open flowTitle="Test" />);
 
-      const backButton = screen.getByText('Back');
-      fireEvent.click(backButton);
-
-      expect(mockNavigate).toHaveBeenCalledWith('/flows');
+      expect(screen.queryByText('Back')).not.toBeInTheDocument();
     });
   });
 
   describe('Resource Sections', () => {
-    it('should render Starter Templates accordion', () => {
-      render(<ResourcePanel resources={createMockResources()} onAdd={vi.fn()} open />);
-
-      expect(screen.getByText('Starter Templates')).toBeInTheDocument();
-    });
-
     it('should render Widgets accordion', () => {
       render(<ResourcePanel resources={createMockResources()} onAdd={vi.fn()} open />);
 
@@ -337,13 +328,6 @@ describe('ResourcePanel', () => {
   });
 
   describe('Resource Items', () => {
-    it('should render static items for templates', () => {
-      render(<ResourcePanel resources={createMockResources()} onAdd={vi.fn()} open />);
-
-      const staticItems = screen.getAllByTestId('resource-panel-static');
-      expect(staticItems.length).toBeGreaterThan(0);
-    });
-
     it('should render draggable items for widgets, steps, elements, and executors', () => {
       render(<ResourcePanel resources={createMockResources()} onAdd={vi.fn()} open />);
 
@@ -380,8 +364,8 @@ describe('ResourcePanel', () => {
     it('should pass disabled prop to resource items', () => {
       render(<ResourcePanel resources={createMockResources()} onAdd={vi.fn()} open disabled />);
 
-      const staticItems = screen.getAllByTestId('resource-panel-static');
-      staticItems.forEach((item) => {
+      const draggableItems = screen.getAllByTestId('resource-panel-draggable');
+      draggableItems.forEach((item) => {
         expect(item).toHaveAttribute('data-disabled', 'true');
       });
     });
@@ -400,16 +384,6 @@ describe('ResourcePanel', () => {
   });
 
   describe('onAdd Callback', () => {
-    it('should call onAdd when static resource add button is clicked', () => {
-      const onAdd = vi.fn();
-      render(<ResourcePanel resources={createMockResources()} onAdd={onAdd} open />);
-
-      const addButtons = screen.getAllByText('Add Static');
-      fireEvent.click(addButtons[0]);
-
-      expect(onAdd).toHaveBeenCalled();
-    });
-
     it('should call onAdd when draggable resource add button is clicked', () => {
       const onAdd = vi.fn();
       render(<ResourcePanel resources={createMockResources()} onAdd={onAdd} open />);

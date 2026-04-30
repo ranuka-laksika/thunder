@@ -84,10 +84,16 @@ func (cm *CacheManager) Init() {
 
 	if getCacheType(cacheConfig) == cacheTypeRedis {
 		cm.redisClient = redis.NewClient(&redis.Options{
-			Addr:     cacheConfig.Redis.Address,
-			Username: cacheConfig.Redis.Username,
-			Password: cacheConfig.Redis.Password,
-			DB:       cacheConfig.Redis.DB,
+			Addr:            cacheConfig.Redis.Address,
+			Username:        cacheConfig.Redis.Username,
+			Password:        cacheConfig.Redis.Password,
+			DB:              cacheConfig.Redis.DB,
+			MaxRetries:      cacheConfig.Redis.MaxRetries,
+			MinRetryBackoff: time.Duration(cacheConfig.Redis.MinRetryBackoffMS) * time.Millisecond,
+			MaxRetryBackoff: time.Duration(cacheConfig.Redis.MaxRetryBackoffMS) * time.Millisecond,
+			DialTimeout:     time.Duration(cacheConfig.Redis.DialTimeoutMS) * time.Millisecond,
+			ReadTimeout:     time.Duration(cacheConfig.Redis.ReadTimeoutMS) * time.Millisecond,
+			WriteTimeout:    time.Duration(cacheConfig.Redis.WriteTimeoutMS) * time.Millisecond,
 		})
 		if err := cm.redisClient.Ping(context.Background()).Err(); err != nil {
 			logger.Error("Failed to connect to Redis. Cache initialization aborted.", log.Error(err))
@@ -206,6 +212,20 @@ func (cm *CacheManager) reset() {
 	cm.enabled = false
 }
 
+// buildRedisKeyPrefix composes the Redis key prefix with deployment ID for per-deployment isolation.
+func buildRedisKeyPrefix(basePrefix string) string {
+	deploymentID := config.GetThunderRuntime().Config.Server.Identifier
+	if deploymentID == "" {
+		return basePrefix
+	}
+
+	if basePrefix == "" {
+		return deploymentID
+	}
+
+	return basePrefix + ":" + deploymentID
+}
+
 // newCache creates a new cache instance.
 func newCache[T any](cacheName string) CacheInterface[T] {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "CacheManager"),
@@ -253,7 +273,7 @@ func newCache[T any](cacheName string) CacheInterface[T] {
 				cacheImpl: nil,
 			}
 		} else {
-			keyPrefix := cacheConfig.Redis.KeyPrefix
+			keyPrefix := buildRedisKeyPrefix(cacheConfig.Redis.KeyPrefix)
 			internalCache = newRedisCache[T](
 				cacheName,
 				!cacheProperty.Disabled,

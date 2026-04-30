@@ -17,8 +17,7 @@
  */
 
 import {FormControl, FormLabel, MenuItem, Select} from '@wso2/oxygen-ui';
-import isEmpty from 'lodash-es/isEmpty';
-import {useState, type ReactElement} from 'react';
+import {memo, useCallback, useMemo, type ReactElement} from 'react';
 import {useTranslation} from 'react-i18next';
 import ButtonExtendedProperties from './extended-properties/ButtonExtendedProperties';
 import ExecutionExtendedProperties from './extended-properties/ExecutionExtendedProperties';
@@ -26,11 +25,12 @@ import FieldExtendedProperties from './extended-properties/FieldExtendedProperti
 import RulesProperties from './nodes/RulesProperties';
 import ResourcePropertyFactory from './ResourcePropertyFactory';
 import TextPropertyField from '@/features/flows/components/resource-property-panel/TextPropertyField';
+import VariantSelect from '@/features/flows/components/resource-property-panel/VariantSelect';
 import type {ResourcePropertiesProps} from '@/features/flows/context/FlowBuilderCoreProvider';
 import type {FieldKey, FieldValue} from '@/features/flows/models/base';
 import {ElementCategories, ElementTypes, type Element} from '@/features/flows/models/elements';
 import type {Resource} from '@/features/flows/models/resources';
-import {ExecutionTypes, StepCategories, StepTypes} from '@/features/flows/models/steps';
+import {StepCategories, StepTypes} from '@/features/flows/models/steps';
 
 /**
  * Factory to generate the property configurator for the given password recovery flow resource.
@@ -38,6 +38,19 @@ import {ExecutionTypes, StepCategories, StepTypes} from '@/features/flows/models
  * @param props - Props injected to the component.
  * @returns The ResourceProperties component.
  */
+const coerceValue = (newValue: unknown): string | boolean | object => {
+  if (typeof newValue === 'boolean') {
+    return newValue;
+  }
+  if (typeof newValue === 'object' && newValue !== null) {
+    return newValue;
+  }
+  if (typeof newValue === 'string' || typeof newValue === 'number') {
+    return String(newValue);
+  }
+  return '';
+};
+
 function ResourceProperties({
   properties,
   resource,
@@ -45,50 +58,22 @@ function ResourceProperties({
   onVariantChange,
 }: ResourcePropertiesProps): ReactElement | null {
   const {t} = useTranslation();
-  // Adapter to handle onChange with proper type preservation
-  const handleChange = (propertyKey: string, newValue: unknown, changedResource: unknown): void => {
-    // Preserve boolean values, objects, convert strings and numbers to string, default to empty string
-    let processedValue: string | boolean | object;
-    if (typeof newValue === 'boolean') {
-      processedValue = newValue;
-    } else if (typeof newValue === 'object' && newValue !== null) {
-      processedValue = newValue;
-    } else if (typeof newValue === 'string' || typeof newValue === 'number') {
-      processedValue = String(newValue);
-    } else {
-      processedValue = '';
-    }
 
-    onChange(propertyKey, processedValue, changedResource as Resource);
-  };
-  const [selectedVariant, setSelectedVariant] = useState<Element | undefined>(() => {
+  const handleChange = useCallback(
+    (propertyKey: string, newValue: unknown, changedResource: unknown, debounce?: boolean): void => {
+      onChange(propertyKey, coerceValue(newValue), changedResource as Resource, debounce);
+    },
+    [onChange],
+  );
+  const selectedVariant = useMemo<Element | undefined>(() => {
     if (!resource?.variants || resource.variants.length === 0) {
       return undefined;
     }
-    // Find the variant that matches the resource's current variant, or fall back to the first one
-    const currentVariant = resource.variants.find((v: Element) => v.variant === (resource as Element).variant) as
-      | Element
-      | undefined;
-    return currentVariant ?? (resource.variants[0] as Element);
-  });
-
-  // Sync selectedVariant when resource changes (e.g., clicking on a different element)
-  const [prevResource, setPrevResource] = useState(resource);
-  if (resource !== prevResource) {
-    setPrevResource(resource);
-    if (!resource?.variants || resource.variants.length === 0) {
-      setSelectedVariant(undefined);
-    } else {
-      const currentVariant = resource.variants.find((v: Element) => v.variant === (resource as Element).variant) as
-        | Element
-        | undefined;
-      setSelectedVariant(currentVariant ?? (resource.variants[0] as Element));
-    }
-  }
+    return resource.variants.find((v: Element) => v.variant === (resource as Element).variant) as Element | undefined;
+  }, [resource]);
 
   const renderElementId = (): ReactElement => (
     <ResourcePropertyFactory
-      InputProps={{readOnly: true}}
       key={`${resource.id}-$id`}
       resource={resource}
       propertyKey="id"
@@ -98,31 +83,9 @@ function ResourceProperties({
   );
 
   const renderElementPropertyFactory = () => {
-    const hasVariants = !isEmpty(resource?.variants);
-
     return (
       <>
-        {hasVariants && (
-          <div>
-            <FormLabel htmlFor="variant-select">Variant</FormLabel>
-            <Select
-              id="variant-select"
-              value={selectedVariant?.variant ?? ''}
-              onChange={(e) => {
-                const newVariant = resource?.variants?.find((variant: Element) => variant.variant === e.target.value);
-                onVariantChange?.((newVariant?.variant as string) ?? '');
-                setSelectedVariant(newVariant);
-              }}
-              fullWidth
-            >
-              {resource?.variants?.map((variant: Element) => (
-                <MenuItem key={variant.variant as string} value={variant.variant as string}>
-                  {variant.variant as string}
-                </MenuItem>
-              ))}
-            </Select>
-          </div>
-        )}
+        <VariantSelect resource={resource} selectedVariant={selectedVariant} onVariantChange={onVariantChange} />
         {properties &&
           Object.entries(properties)?.map(([key, value]: [FieldKey, FieldValue]) => (
             <ResourcePropertyFactory
@@ -180,19 +143,6 @@ function ResourceProperties({
 
       return null;
     case StepCategories.Workflow:
-      if (
-        resource.type === StepTypes.Execution &&
-        (resource?.data as {action?: {executor?: {name?: string}}})?.action?.executor?.name ===
-          ExecutionTypes.ConfirmationCode
-      ) {
-        return (
-          <>
-            {renderElementId()}
-            {/* <ConfirmationCodeProperties resource={resource} onChange={onChange} /> */}
-            {renderElementPropertyFactory()}
-          </>
-        );
-      }
       return (
         <>
           {renderElementId()}
@@ -202,39 +152,15 @@ function ResourceProperties({
       );
     case ElementCategories.Display:
       if (resource.type === ElementTypes.Text) {
-        const hasVariants = !isEmpty(resource?.variants);
-
         return (
           <>
             {renderElementId()}
-            {hasVariants && (
-              <div>
-                <FormLabel htmlFor="variant-select">Variant</FormLabel>
-                <Select
-                  id="variant-select"
-                  value={selectedVariant?.variant ?? ''}
-                  onChange={(e) => {
-                    const newVariant = resource?.variants?.find(
-                      (variant: Element) => variant.variant === e.target.value,
-                    );
-                    onVariantChange?.((newVariant?.variant as string) ?? '');
-                    setSelectedVariant(newVariant);
-                  }}
-                  fullWidth
-                >
-                  {resource?.variants?.map((variant: Element) => (
-                    <MenuItem key={variant.variant as string} value={variant.variant as string}>
-                      {variant.variant as string}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </div>
-            )}
+            <VariantSelect resource={resource} selectedVariant={selectedVariant} onVariantChange={onVariantChange} />
             <TextPropertyField
               resource={resource}
               propertyKey="label"
               propertyValue={(resource as Element & {label?: string}).label ?? ''}
-              onChange={(_key, value, res) => handleChange('label', value, res)}
+              onChange={(_key, value, res) => handleChange('label', value, res, true)}
             />
             <FormControl fullWidth size="small">
               <FormLabel htmlFor="align-select">{t('flows:core.elements.text.align.label')}</FormLabel>
@@ -261,25 +187,25 @@ function ResourceProperties({
               resource={resource}
               propertyKey="src"
               propertyValue={(resource as Element & {src?: string}).src ?? ''}
-              onChange={(_key, value, res) => handleChange('src', value, res)}
+              onChange={(_key, value, res) => handleChange('src', value, res, true)}
             />
             <TextPropertyField
               resource={resource}
               propertyKey="alt"
               propertyValue={(resource as Element & {alt?: string}).alt ?? ''}
-              onChange={(_key, value, res) => handleChange('alt', value, res)}
+              onChange={(_key, value, res) => handleChange('alt', value, res, true)}
             />
             <TextPropertyField
               resource={resource}
               propertyKey="width"
               propertyValue={(resource as Element & {width?: string}).width ?? ''}
-              onChange={(_key, value, res) => handleChange('width', value, res)}
+              onChange={(_key, value, res) => handleChange('width', value, res, true)}
             />
             <TextPropertyField
               resource={resource}
               propertyKey="height"
               propertyValue={(resource as Element & {height?: string}).height ?? ''}
-              onChange={(_key, value, res) => handleChange('height', value, res)}
+              onChange={(_key, value, res) => handleChange('height', value, res, true)}
             />
           </>
         );
@@ -301,4 +227,4 @@ function ResourceProperties({
   }
 }
 
-export default ResourceProperties;
+export default memo(ResourceProperties);

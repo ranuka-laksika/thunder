@@ -141,7 +141,7 @@ var (
 				"type": "string",
 			},
 			"password": map[string]interface{}{
-				"type": "string",
+				"type":       "string",
 				"credential": true,
 			},
 		},
@@ -194,6 +194,7 @@ func (ts *SensitiveInputCleanupTestSuite) SetupSuite() {
 	sensitiveCleanupTestApp.AuthFlowID = flowID
 
 	// Create test application
+	sensitiveCleanupTestApp.OUID = ts.ouID
 	appID, err := testutils.CreateApplication(sensitiveCleanupTestApp)
 	if err != nil {
 		ts.T().Fatalf("Failed to create test application during setup: %v", err)
@@ -251,7 +252,7 @@ func (ts *SensitiveInputCleanupTestSuite) TestPasswordClearedAfterAuthExecution(
 
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("VIEW", flowStep.Type, "Expected flow type to be VIEW")
-	ts.Require().NotEmpty(flowStep.FlowID, "Flow ID should not be empty")
+	ts.Require().NotEmpty(flowStep.ExecutionID, "Execution ID should not be empty")
 
 	// Verify both username and password are requested
 	ts.Require().True(common.HasInput(flowStep.Data.Inputs, "username"),
@@ -272,7 +273,7 @@ func (ts *SensitiveInputCleanupTestSuite) TestPasswordClearedAfterAuthExecution(
 	// After basic_auth completes, password should be cleared from context.
 	// The second prompt node (prompt_password_again) should detect the missing password
 	// and return INCOMPLETE, asking for it again.
-	step2, err := common.CompleteFlow(flowStep.FlowID, inputs, "action_001")
+	step2, err := common.CompleteFlow(flowStep.ExecutionID, inputs, "action_001", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete flow step 2")
 
 	ts.Require().Equal("INCOMPLETE", step2.FlowStatus,
@@ -291,7 +292,7 @@ func (ts *SensitiveInputCleanupTestSuite) TestPasswordClearedAfterAuthExecution(
 		"password": userAttrs["password"].(string),
 	}
 
-	step3, err := common.CompleteFlow(flowStep.FlowID, inputs, "action_002")
+	step3, err := common.CompleteFlow(flowStep.ExecutionID, inputs, "action_002", step2.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete flow step 3")
 
 	ts.Require().Equal("COMPLETE", step3.FlowStatus, "Expected flow to complete after re-submitting password")

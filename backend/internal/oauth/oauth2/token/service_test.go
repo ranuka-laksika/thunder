@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	applicationmodel "github.com/asgardeo/thunder/internal/application/model"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/model"
 	"github.com/asgardeo/thunder/internal/oauth/scope"
@@ -79,8 +79,8 @@ func (suite *TokenServiceTestSuite) newService() TokenServiceInterface {
 }
 
 // defaultApp returns an OAuthAppConfigProcessedDTO that allows the authorization_code grant.
-func (suite *TokenServiceTestSuite) defaultApp() *applicationmodel.OAuthAppConfigProcessedDTO {
-	return &applicationmodel.OAuthAppConfigProcessedDTO{
+func (suite *TokenServiceTestSuite) defaultApp() *inboundmodel.OAuthClient {
+	return &inboundmodel.OAuthClient{
 		ClientID:   "test-client-id",
 		GrantTypes: []constants.GrantType{constants.GrantTypeAuthorizationCode},
 	}
@@ -156,7 +156,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_UnauthorizedClient()
 		GrantType: string(constants.GrantTypeClientCredentials),
 	}
 	// App only allows authorization_code — client_credentials is not permitted.
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID:   "test-client-id",
 		GrantTypes: []constants.GrantType{constants.GrantTypeAuthorizationCode},
 	}
@@ -342,7 +342,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_WithRefreshToken() {
 		Scope:     "openid",
 	}
 	// App allows both authorization_code and refresh_token.
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID: "test-client-id",
 		GrantTypes: []constants.GrantType{
 			constants.GrantTypeAuthorizationCode,
@@ -370,7 +370,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_WithRefreshToken() {
 			ExpiresIn: 3600,
 			Scopes:    []string{"openid"},
 			Subject:   "user123",
-			Audience:  "test-audience",
+			Audiences: []string{"test-audience"},
 		},
 		RefreshToken: model.TokenDTO{Token: ""},
 		IDToken:      model.TokenDTO{Token: ""},
@@ -378,7 +378,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_WithRefreshToken() {
 	suite.mockGrantHandler.On("HandleGrant", mock.Anything, mock.Anything, app).Return(tokenRespDTO, nil)
 
 	mockRefreshHandler.
-		On("IssueRefreshToken", mock.Anything, tokenRespDTO, app, "user123", "test-audience",
+		On("IssueRefreshToken", mock.Anything, tokenRespDTO, app, "user123", []string{"test-audience"},
 			"authorization_code", []string{"openid"}, (*model.ClaimsRequest)(nil), "", "").
 		Return(nil)
 
@@ -397,7 +397,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenIssuance
 		Code:      "test-code",
 		Scope:     "openid",
 	}
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID: "test-client-id",
 		GrantTypes: []constants.GrantType{
 			constants.GrantTypeAuthorizationCode,
@@ -425,7 +425,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenIssuance
 			ExpiresIn: 3600,
 			Scopes:    []string{"openid"},
 			Subject:   "user123",
-			Audience:  "test-audience",
+			Audiences: []string{"test-audience"},
 		},
 		RefreshToken: model.TokenDTO{Token: ""},
 		IDToken:      model.TokenDTO{Token: ""},
@@ -433,7 +433,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenIssuance
 	suite.mockGrantHandler.On("HandleGrant", mock.Anything, mock.Anything, app).Return(tokenRespDTO, nil)
 
 	mockRefreshHandler.
-		On("IssueRefreshToken", mock.Anything, tokenRespDTO, app, "user123", "test-audience",
+		On("IssueRefreshToken", mock.Anything, tokenRespDTO, app, "user123", []string{"test-audience"},
 			"authorization_code", []string{"openid"}, (*model.ClaimsRequest)(nil), "", "").
 		Return(&model.ErrorResponse{
 			Error:            "server_error",
@@ -455,7 +455,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenHandlerN
 		Code:      "test-code",
 		Scope:     "openid",
 	}
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID: "test-client-id",
 		GrantTypes: []constants.GrantType{
 			constants.GrantTypeAuthorizationCode,
@@ -477,7 +477,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenHandlerN
 	tokenRespDTO := &model.TokenResponseDTO{
 		AccessToken: model.TokenDTO{
 			Token: "access-token-123", TokenType: "Bearer", ExpiresIn: 3600,
-			Scopes: []string{"openid"}, Subject: "user123", Audience: "test-audience",
+			Scopes: []string{"openid"}, Subject: "user123", Audiences: []string{"test-audience"},
 		},
 		RefreshToken: model.TokenDTO{Token: ""},
 		IDToken:      model.TokenDTO{Token: ""},
@@ -498,7 +498,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenHandlerC
 		Code:      "test-code",
 		Scope:     "openid",
 	}
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID: "test-client-id",
 		GrantTypes: []constants.GrantType{
 			constants.GrantTypeAuthorizationCode,
@@ -521,7 +521,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_RefreshTokenHandlerC
 	tokenRespDTO := &model.TokenResponseDTO{
 		AccessToken: model.TokenDTO{
 			Token: "access-token-123", TokenType: "Bearer", ExpiresIn: 3600,
-			Scopes: []string{"openid"}, Subject: "user123", Audience: "test-audience",
+			Scopes: []string{"openid"}, Subject: "user123", Audiences: []string{"test-audience"},
 		},
 		RefreshToken: model.TokenDTO{Token: ""},
 		IDToken:      model.TokenDTO{Token: ""},
@@ -542,7 +542,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_TokenExchange() {
 		SubjectToken:       "subject-token",
 		RequestedTokenType: string(constants.TokenTypeIdentifierAccessToken),
 	}
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID:   "test-client-id",
 		GrantTypes: []constants.GrantType{constants.GrantTypeTokenExchange},
 	}
@@ -579,7 +579,7 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_TokenExchangeWithJWT
 		SubjectToken:       "subject-token",
 		RequestedTokenType: string(constants.TokenTypeIdentifierJWT),
 	}
-	app := &applicationmodel.OAuthAppConfigProcessedDTO{
+	app := &inboundmodel.OAuthClient{
 		ClientID:   "test-client-id",
 		GrantTypes: []constants.GrantType{constants.GrantTypeTokenExchange},
 	}
@@ -606,4 +606,63 @@ func (suite *TokenServiceTestSuite) TestProcessTokenRequest_TokenExchangeWithJWT
 	assert.Nil(suite.T(), errResp)
 	assert.NotNil(suite.T(), tokenResp)
 	assert.Equal(suite.T(), string(constants.TokenTypeIdentifierJWT), tokenResp.IssuedTokenType)
+}
+
+func (suite *TokenServiceTestSuite) TestProcessTokenRequest_WithRefreshToken_UsesOriginalAudiences() {
+	// When the access token carries OriginalAudiences (narrowing occurred), the refresh token
+	// issuance must receive the original full set, not the narrowed Audiences (RFC 8707 §5).
+	req := &model.TokenRequest{
+		ClientID:  "test-client-id",
+		GrantType: string(constants.GrantTypeAuthorizationCode),
+		Code:      "test-code",
+		Scope:     "openid",
+	}
+	app := &inboundmodel.OAuthClient{
+		ClientID: "test-client-id",
+		GrantTypes: []constants.GrantType{
+			constants.GrantTypeAuthorizationCode,
+			constants.GrantTypeRefreshToken,
+		},
+	}
+
+	suite.mockGrantProvider.ExpectedCalls = nil
+	suite.mockGrantProvider.
+		On("GetGrantHandler", constants.GrantTypeAuthorizationCode).
+		Return(suite.mockGrantHandler, nil)
+
+	mockRefreshHandler := granthandlersmock.NewRefreshTokenGrantHandlerInterfaceMock(suite.T())
+	suite.mockGrantProvider.
+		On("GetGrantHandler", constants.GrantTypeRefreshToken).
+		Return(mockRefreshHandler, nil)
+
+	suite.mockGrantHandler.On("ValidateGrant", mock.Anything, mock.Anything, app).Return(nil)
+	suite.mockScopeValidator.On("ValidateScopes", mock.Anything, "openid", "test-client-id").Return("openid", nil)
+
+	tokenRespDTO := &model.TokenResponseDTO{
+		AccessToken: model.TokenDTO{
+			Token:             "access-token-123",
+			TokenType:         "Bearer",
+			ExpiresIn:         3600,
+			Scopes:            []string{"openid"},
+			Subject:           "user123",
+			Audiences:         []string{"narrowed-audience"},
+			OriginalAudiences: []string{"original-audience-1", "original-audience-2"},
+		},
+		RefreshToken: model.TokenDTO{Token: ""},
+		IDToken:      model.TokenDTO{Token: ""},
+	}
+	suite.mockGrantHandler.On("HandleGrant", mock.Anything, mock.Anything, app).Return(tokenRespDTO, nil)
+
+	mockRefreshHandler.
+		On("IssueRefreshToken", mock.Anything, tokenRespDTO, app, "user123",
+			[]string{"original-audience-1", "original-audience-2"},
+			"authorization_code", []string{"openid"}, (*model.ClaimsRequest)(nil), "", "").
+		Return(nil)
+
+	svc := suite.newService()
+	tokenResp, errResp := svc.ProcessTokenRequest(context.Background(), req, app)
+
+	assert.Nil(suite.T(), errResp)
+	assert.NotNil(suite.T(), tokenResp)
+	assert.Equal(suite.T(), "access-token-123", tokenResp.AccessToken)
 }

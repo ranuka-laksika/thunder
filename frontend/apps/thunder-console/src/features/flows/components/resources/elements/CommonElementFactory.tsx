@@ -22,6 +22,7 @@ import ButtonAdapter from './adapters/ButtonAdapter';
 import CaptchaAdapter from './adapters/CaptchaAdapter';
 import ChoiceAdapter from './adapters/ChoiceAdapter';
 import ConsentAdapter from './adapters/ConsentAdapter';
+import CustomAdapter from './adapters/CustomAdapter';
 import DividerAdapter from './adapters/DividerAdapter';
 import FormAdapter from './adapters/FormAdapter';
 import IconAdapter from './adapters/IconAdapter';
@@ -30,6 +31,7 @@ import CheckboxAdapter from './adapters/input/CheckboxAdapter';
 import DefaultInputAdapter from './adapters/input/DefaultInputAdapter';
 import OTPInputAdapter from './adapters/input/OTPInputAdapter';
 import PhoneNumberInputAdapter from './adapters/input/PhoneNumberInputAdapter';
+import SelectAdapter from './adapters/input/SelectAdapter';
 import ResendButtonAdapter from './adapters/ResendButtonAdapter';
 import RichTextAdapter from './adapters/RichTextAdapter';
 import StackAdapter from './adapters/StackAdapter';
@@ -121,6 +123,9 @@ function CommonElementFactory({
   if (resource.type === ElementTypes.Dropdown) {
     return <ChoiceAdapter resource={resource} />;
   }
+  if (resource.type === ElementTypes.Select) {
+    return <SelectAdapter resource={resource} />;
+  }
   if (resource.type === ElementTypes.Action) {
     return <ButtonAdapter resource={resource} elementIndex={elementIndex} />;
   }
@@ -160,6 +165,9 @@ function CommonElementFactory({
   }
   if (resource.type === ElementTypes.Consent) {
     return <ConsentAdapter />;
+  }
+  if (resource.type === ElementTypes.Custom) {
+    return <CustomAdapter resource={resource} />;
   }
 
   return null;

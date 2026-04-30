@@ -45,8 +45,8 @@ vi.mock('../../components/edit-role/assignments-settings/EditAssignmentsSettings
   default: () => <div data-testid="edit-assignments-settings">Assignments Settings</div>,
 }));
 
-vi.mock('../../../../components/CopyableId', () => ({
-  default: ({value}: {value: string}) => <span data-testid="copyable-id">{value}</span>,
+vi.mock('@thunder/components', () => ({
+  CopyableId: vi.fn(() => null),
 }));
 
 vi.mock('react-router', async () => {
@@ -68,8 +68,8 @@ vi.mock('@thunder/logger/react', () => ({
   }),
 }));
 
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useToast: () => ({showToast: vi.fn()}),
@@ -165,16 +165,10 @@ describe('RoleEditPage', () => {
       expect(screen.getByText('Admin Role')).toBeInTheDocument();
     });
 
-    it('should display role description', () => {
+    it('should render role description', () => {
       render(<RoleEditPage />);
 
       expect(screen.getByText('Administrator role')).toBeInTheDocument();
-    });
-
-    it('should render CopyableId with role.id', () => {
-      render(<RoleEditPage />);
-
-      expect(screen.getByTestId('copyable-id')).toHaveTextContent('role-1');
     });
 
     it('should render two tabs', () => {

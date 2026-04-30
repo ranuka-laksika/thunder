@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import RoleQueryKeys from '../constants/role-query-keys';
 import type {UpdateRoleRequest} from '../models/requests';
@@ -48,7 +48,7 @@ export default function useUpdateRole(): UseMutationResult<Role, Error, UpdateRo
         url: `${serverUrl}/roles/${roleId}`,
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        data: JSON.stringify(data),
+        data: data,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

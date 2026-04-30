@@ -116,7 +116,7 @@ func (s *notificationSenderMgtService) CreateSender(
 	}
 	if transactErr != nil {
 		logger.Error("Failed to create notification sender", log.Error(transactErr), log.String("name", sender.Name))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	return &common.NotificationSenderDTO{
@@ -138,7 +138,7 @@ func (s *notificationSenderMgtService) ListSenders(ctx context.Context) ([]commo
 	senders, err := s.notificationStore.listSenders(ctx)
 	if err != nil {
 		logger.Error("Failed to list notification senders", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	return senders, nil
@@ -157,7 +157,11 @@ func (s *notificationSenderMgtService) GetSender(ctx context.Context, id string)
 	sender, err := s.notificationStore.getSenderByID(ctx, id)
 	if err != nil {
 		logger.Error("Failed to retrieve notification sender", log.String("id", id), log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
+	}
+
+	if sender == nil {
+		return nil, &ErrorSenderNotFound
 	}
 
 	return sender, nil
@@ -176,7 +180,11 @@ func (s *notificationSenderMgtService) GetSenderByName(ctx context.Context, name
 	sender, err := s.notificationStore.getSenderByName(ctx, name)
 	if err != nil {
 		logger.Error("Failed to retrieve notification sender", log.String("name", name), log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
+	}
+
+	if sender == nil {
+		return nil, &ErrorSenderNotFound
 	}
 
 	return sender, nil
@@ -247,7 +255,7 @@ func (s *notificationSenderMgtService) UpdateSender(ctx context.Context, id stri
 	}
 	if transactErr != nil {
 		logger.Error("Failed to update notification sender", log.Error(transactErr), log.String("id", id))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	return &common.NotificationSenderDTO{
@@ -282,7 +290,7 @@ func (s *notificationSenderMgtService) DeleteSender(ctx context.Context, id stri
 
 	if transactErr != nil {
 		logger.Error("Failed to delete notification sender", log.Error(transactErr), log.String("id", id))
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 
 	return nil

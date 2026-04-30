@@ -32,14 +32,14 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock @thunder/shared-contexts
-vi.mock('@thunder/shared-contexts', () => ({
+// Mock contexts
+vi.mock('@thunder/contexts', () => ({
   useConfig: () => ({
     getServerUrl: () => 'https://localhost:8090',
   }),
 }));
 
-// Mock the API hooks used by I18nConfigurationCard from @thunder/i18n
+// Mock the API hooks used by I18nConfigurationCard from i18n
 vi.mock('@thunder/i18n', () => ({
   NamespaceConstants: {CUSTOM_NAMESPACE: 'custom'},
   I18nDefaultConstants: {FALLBACK_LANGUAGE: 'en-US'},
@@ -64,6 +64,14 @@ vi.mock('@thunder/i18n', () => ({
       },
     },
     isLoading: false,
+  }),
+}));
+
+// Mock useI18nConfig used by I18nConfigurationCard
+vi.mock('../../../hooks/useI18nConfig', () => ({
+  default: () => ({
+    i18nText: {},
+    i18nTextLoading: false,
   }),
 }));
 
@@ -166,7 +174,7 @@ describe('TextPropertyField', () => {
       const textField = screen.getByRole('textbox');
       fireEvent.change(textField, {target: {value: 'New Value'}});
 
-      expect(mockOnChange).toHaveBeenCalledWith('label', 'New Value', mockResource);
+      expect(mockOnChange).toHaveBeenCalledWith('label', 'New Value', mockResource, true);
     });
 
     it('should pass the correct resource to onChange', () => {
@@ -184,7 +192,7 @@ describe('TextPropertyField', () => {
       const textField = screen.getByRole('textbox');
       fireEvent.change(textField, {target: {value: 'Test'}});
 
-      expect(mockOnChange).toHaveBeenCalledWith('description', 'Test', specificResource);
+      expect(mockOnChange).toHaveBeenCalledWith('description', 'Test', specificResource, true);
     });
   });
 

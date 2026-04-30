@@ -57,6 +57,7 @@ func (ah *applicationHandler) HandleApplicationPostRequest(w http.ResponseWriter
 	}
 
 	appDTO := model.ApplicationDTO{
+		OUID:                      appRequest.OUID,
 		Name:                      appRequest.Name,
 		Description:               appRequest.Description,
 		AuthFlowID:                appRequest.AuthFlowID,
@@ -87,6 +88,7 @@ func (ah *applicationHandler) HandleApplicationPostRequest(w http.ResponseWriter
 
 	returnApp := model.ApplicationCompleteResponse{
 		ID:                        createdAppDTO.ID,
+		OUID:                      createdAppDTO.OUID,
 		Name:                      createdAppDTO.Name,
 		Description:               createdAppDTO.Description,
 		AuthFlowID:                createdAppDTO.AuthFlowID,
@@ -112,9 +114,9 @@ func (ah *applicationHandler) HandleApplicationPostRequest(w http.ResponseWriter
 		success := ah.processInboundAuthConfig(logger, createdAppDTO, &returnApp)
 		if !success {
 			errResp := apierror.ErrorResponse{
-				Code:        ErrorInternalServerError.Code,
-				Message:     ErrorInternalServerError.Error,
-				Description: ErrorInternalServerError.ErrorDescription,
+				Code:        serviceerror.InternalServerError.Code,
+				Message:     serviceerror.InternalServerError.Error,
+				Description: serviceerror.InternalServerError.ErrorDescription,
 			}
 			sysutils.WriteErrorResponse(w, http.StatusInternalServerError, errResp)
 			return
@@ -160,6 +162,7 @@ func (ah *applicationHandler) HandleApplicationGetRequest(w http.ResponseWriter,
 
 	returnApp := model.ApplicationGetResponse{
 		ID:                        appDTO.ID,
+		OUID:                      appDTO.OUID,
 		Name:                      appDTO.Name,
 		Description:               appDTO.Description,
 		AuthFlowID:                appDTO.AuthFlowID,
@@ -187,9 +190,9 @@ func (ah *applicationHandler) HandleApplicationGetRequest(w http.ResponseWriter,
 				log.String("type", string(appDTO.InboundAuthConfig[0].Type)))
 
 			errResp := apierror.ErrorResponse{
-				Code:        ErrorInternalServerError.Code,
-				Message:     ErrorInternalServerError.Error,
-				Description: ErrorInternalServerError.ErrorDescription,
+				Code:        serviceerror.InternalServerError.Code,
+				Message:     serviceerror.InternalServerError.Error,
+				Description: serviceerror.InternalServerError.ErrorDescription,
 			}
 			sysutils.WriteErrorResponse(w, http.StatusInternalServerError, errResp)
 			return
@@ -200,9 +203,9 @@ func (ah *applicationHandler) HandleApplicationGetRequest(w http.ResponseWriter,
 			logger.Error("OAuth application configuration is nil")
 
 			errResp := apierror.ErrorResponse{
-				Code:        ErrorInternalServerError.Code,
-				Message:     ErrorInternalServerError.Error,
-				Description: ErrorInternalServerError.ErrorDescription,
+				Code:        serviceerror.InternalServerError.Code,
+				Message:     serviceerror.InternalServerError.Error,
+				Description: serviceerror.InternalServerError.ErrorDescription,
 			}
 			sysutils.WriteErrorResponse(w, http.StatusInternalServerError, errResp)
 			return
@@ -225,18 +228,19 @@ func (ah *applicationHandler) HandleApplicationGetRequest(w http.ResponseWriter,
 		returnInboundAuthConfigs := make([]model.InboundAuthConfig, 0)
 		for _, config := range appDTO.InboundAuthConfig {
 			oAuthAppConfig := model.OAuthAppConfig{
-				ClientID:                config.OAuthAppConfig.ClientID,
-				RedirectURIs:            redirectURIs,
-				GrantTypes:              grantTypes,
-				ResponseTypes:           responseTypes,
-				TokenEndpointAuthMethod: tokenAuthMethod,
-				PKCERequired:            config.OAuthAppConfig.PKCERequired,
-				PublicClient:            config.OAuthAppConfig.PublicClient,
-				Token:                   config.OAuthAppConfig.Token,
-				Scopes:                  config.OAuthAppConfig.Scopes,
-				UserInfo:                config.OAuthAppConfig.UserInfo,
-				ScopeClaims:             config.OAuthAppConfig.ScopeClaims,
-				Certificate:             config.OAuthAppConfig.Certificate,
+				ClientID:                           config.OAuthAppConfig.ClientID,
+				RedirectURIs:                       redirectURIs,
+				GrantTypes:                         grantTypes,
+				ResponseTypes:                      responseTypes,
+				TokenEndpointAuthMethod:            tokenAuthMethod,
+				PKCERequired:                       config.OAuthAppConfig.PKCERequired,
+				PublicClient:                       config.OAuthAppConfig.PublicClient,
+				RequirePushedAuthorizationRequests: config.OAuthAppConfig.RequirePushedAuthorizationRequests,
+				Token:                              config.OAuthAppConfig.Token,
+				Scopes:                             config.OAuthAppConfig.Scopes,
+				UserInfo:                           config.OAuthAppConfig.UserInfo,
+				ScopeClaims:                        config.OAuthAppConfig.ScopeClaims,
+				Certificate:                        config.OAuthAppConfig.Certificate,
 			}
 			returnInboundAuthConfigs = append(returnInboundAuthConfigs, model.InboundAuthConfig{
 				Type:           config.Type,
@@ -279,6 +283,7 @@ func (ah *applicationHandler) HandleApplicationPutRequest(w http.ResponseWriter,
 
 	updateReqAppDTO := model.ApplicationDTO{
 		ID:                        id,
+		OUID:                      appRequest.OUID,
 		Name:                      appRequest.Name,
 		Description:               appRequest.Description,
 		AuthFlowID:                appRequest.AuthFlowID,
@@ -309,6 +314,7 @@ func (ah *applicationHandler) HandleApplicationPutRequest(w http.ResponseWriter,
 
 	returnApp := model.ApplicationCompleteResponse{
 		ID:                        updatedAppDTO.ID,
+		OUID:                      updatedAppDTO.OUID,
 		Name:                      updatedAppDTO.Name,
 		Description:               updatedAppDTO.Description,
 		AuthFlowID:                updatedAppDTO.AuthFlowID,
@@ -334,9 +340,9 @@ func (ah *applicationHandler) HandleApplicationPutRequest(w http.ResponseWriter,
 		success := ah.processInboundAuthConfig(logger, updatedAppDTO, &returnApp)
 		if !success {
 			errResp := apierror.ErrorResponse{
-				Code:        ErrorInternalServerError.Code,
-				Message:     ErrorInternalServerError.Error,
-				Description: ErrorInternalServerError.ErrorDescription,
+				Code:        serviceerror.InternalServerError.Code,
+				Message:     serviceerror.InternalServerError.Error,
+				Description: serviceerror.InternalServerError.ErrorDescription,
 			}
 			sysutils.WriteErrorResponse(w, http.StatusInternalServerError, errResp)
 			return
@@ -403,19 +409,20 @@ func (ah *applicationHandler) processInboundAuthConfig(logger *log.Logger, appDT
 		returnInboundAuthConfigs := make([]model.InboundAuthConfigComplete, 0)
 		for _, config := range appDTO.InboundAuthConfig {
 			oAuthAppConfig := model.OAuthAppConfigComplete{
-				ClientID:                config.OAuthAppConfig.ClientID,
-				ClientSecret:            config.OAuthAppConfig.ClientSecret,
-				RedirectURIs:            redirectURIs,
-				GrantTypes:              grantTypes,
-				ResponseTypes:           responseTypes,
-				TokenEndpointAuthMethod: tokenAuthMethod,
-				PKCERequired:            config.OAuthAppConfig.PKCERequired,
-				PublicClient:            config.OAuthAppConfig.PublicClient,
-				Token:                   config.OAuthAppConfig.Token,
-				Scopes:                  config.OAuthAppConfig.Scopes,
-				UserInfo:                config.OAuthAppConfig.UserInfo,
-				ScopeClaims:             config.OAuthAppConfig.ScopeClaims,
-				Certificate:             config.OAuthAppConfig.Certificate,
+				ClientID:                           config.OAuthAppConfig.ClientID,
+				ClientSecret:                       config.OAuthAppConfig.ClientSecret,
+				RedirectURIs:                       redirectURIs,
+				GrantTypes:                         grantTypes,
+				ResponseTypes:                      responseTypes,
+				TokenEndpointAuthMethod:            tokenAuthMethod,
+				PKCERequired:                       config.OAuthAppConfig.PKCERequired,
+				PublicClient:                       config.OAuthAppConfig.PublicClient,
+				RequirePushedAuthorizationRequests: config.OAuthAppConfig.RequirePushedAuthorizationRequests,
+				Token:                              config.OAuthAppConfig.Token,
+				Scopes:                             config.OAuthAppConfig.Scopes,
+				UserInfo:                           config.OAuthAppConfig.UserInfo,
+				ScopeClaims:                        config.OAuthAppConfig.ScopeClaims,
+				Certificate:                        config.OAuthAppConfig.Certificate,
 			}
 			returnInboundAuthConfigs = append(returnInboundAuthConfigs, model.InboundAuthConfigComplete{
 				Type:           config.Type,
@@ -454,7 +461,7 @@ func (ah *applicationHandler) handleError(w http.ResponseWriter, r *http.Request
 			log.String("method", r.Method),
 			log.String("path", r.URL.Path),
 			log.String("error_code", svcErr.Code),
-			log.String("error", svcErr.Error),
+			log.String("error", svcErr.Error.DefaultValue),
 		)
 	}
 
@@ -477,19 +484,20 @@ func (ah *applicationHandler) processInboundAuthConfigFromRequest(
 		inboundAuthConfigDTO := model.InboundAuthConfigDTO{
 			Type: config.Type,
 			OAuthAppConfig: &model.OAuthAppConfigDTO{
-				ClientID:                config.OAuthAppConfig.ClientID,
-				ClientSecret:            config.OAuthAppConfig.ClientSecret,
-				RedirectURIs:            config.OAuthAppConfig.RedirectURIs,
-				GrantTypes:              config.OAuthAppConfig.GrantTypes,
-				ResponseTypes:           config.OAuthAppConfig.ResponseTypes,
-				TokenEndpointAuthMethod: config.OAuthAppConfig.TokenEndpointAuthMethod,
-				PKCERequired:            config.OAuthAppConfig.PKCERequired,
-				PublicClient:            config.OAuthAppConfig.PublicClient,
-				Token:                   config.OAuthAppConfig.Token,
-				Scopes:                  config.OAuthAppConfig.Scopes,
-				UserInfo:                config.OAuthAppConfig.UserInfo,
-				ScopeClaims:             config.OAuthAppConfig.ScopeClaims,
-				Certificate:             config.OAuthAppConfig.Certificate,
+				ClientID:                           config.OAuthAppConfig.ClientID,
+				ClientSecret:                       config.OAuthAppConfig.ClientSecret,
+				RedirectURIs:                       config.OAuthAppConfig.RedirectURIs,
+				GrantTypes:                         config.OAuthAppConfig.GrantTypes,
+				ResponseTypes:                      config.OAuthAppConfig.ResponseTypes,
+				TokenEndpointAuthMethod:            config.OAuthAppConfig.TokenEndpointAuthMethod,
+				PKCERequired:                       config.OAuthAppConfig.PKCERequired,
+				PublicClient:                       config.OAuthAppConfig.PublicClient,
+				RequirePushedAuthorizationRequests: config.OAuthAppConfig.RequirePushedAuthorizationRequests,
+				Token:                              config.OAuthAppConfig.Token,
+				Scopes:                             config.OAuthAppConfig.Scopes,
+				UserInfo:                           config.OAuthAppConfig.UserInfo,
+				ScopeClaims:                        config.OAuthAppConfig.ScopeClaims,
+				Certificate:                        config.OAuthAppConfig.Certificate,
 			},
 		}
 		inboundAuthConfigDTOs = append(inboundAuthConfigDTOs, inboundAuthConfigDTO)

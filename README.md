@@ -1,4 +1,4 @@
-# WSO2 Thunder ⚡
+# Thunder ⚡
 
 ### Identity Management Suite
 
@@ -109,7 +109,7 @@ Follow these steps to run WSO2 Thunder using Docker Compose.
     Download the `docker-compose.yml` file using the following command:
 
     ```bash
-    curl -o docker-compose.yml https://raw.githubusercontent.com/asgardeo/thunder/v0.31.0/install/quick-start/docker-compose.yml
+    curl -o docker-compose.yml https://raw.githubusercontent.com/asgardeo/thunder/v0.35.0/install/quick-start/docker-compose.yml
     ```
 
 2. **Start Thunder**
@@ -231,20 +231,20 @@ To access the system APIs of Thunder, you need a token with system permissions. 
 curl -k -X POST 'https://localhost:8090/flow/execute' \
   -d '{"applicationId":"<application_id>","flowType":"AUTHENTICATION"}'
 ```
-2. Extract the `flowId` value from the response.
+2. Extract the `executionId` value from the response.
 ```json
-{"flowId":"<flow_id>","flowStatus":"INCOMPLETE", ...}
+{"executionId":"<execution_id>","flowStatus":"INCOMPLETE", ...}
 ```
 
-3. Run the following command, replacing `<flow_id>` with the `flowId` value you extracted above.
+3. Run the following command, replacing `<execution_id>` with the `executionId` value you extracted above.
 ```bash
 curl -k -X POST 'https://localhost:8090/flow/execute' \
-  -d '{"flowId":"<flow_id>", "inputs":{"username":"admin","password":"admin", "requested_permissions":"system"},"action": "action_001"}'
+  -d '{"executionId":"<execution_id>", "inputs":{"username":"admin","password":"admin", "requested_permissions":"system"},"action": "action_001"}'
 ```
 
 4. Obtain the system API token by extracting the `assertion` value from the response.
 ```json
-{"flowId":"<flow_id>","flowStatus":"COMPLETE","data":{},"assertion":"<assertion>"}
+{"executionId":"<execution_id>","flowStatus":"COMPLETE","data":{},"assertion":"<assertion>"}
 ```
 
 #### Try Out Client Credentials Flow
@@ -313,7 +313,7 @@ For code contributions, refer to the [Contributing Code](https://asgardeo.github
 
 ## Documentation
 
-Please refer to the [Documentation](https://asgardeo.github.io/thunder/docs/guides/introduction) for additional guidance on getting started with Thunder and exploring its features, concepts, and usage.
+Please refer to the [Documentation](https://asgardeo.github.io/thunder/docs/next/guides/getting-started/what-is-thunder) for additional guidance on getting started with Thunder and exploring its features, concepts, and usage.
 
 <details>
 <summary><h2>Advanced Setup & Configuration</h2></summary>

@@ -442,6 +442,7 @@ func (ts *HTTPRequestRuntimeDataRegistrationFlowTestSuite) SetupSuite() {
 	ts.config.CreatedFlowIDs = append(ts.config.CreatedFlowIDs, flowID)
 	httpRequestRuntimeDataApp.RegistrationFlowID = flowID
 
+	httpRequestRuntimeDataApp.OUID = httpRequestRuntimeDataOUID
 	appID, err := testutils.CreateApplication(httpRequestRuntimeDataApp)
 	ts.Require().NoError(err, "Failed to create runtime data test application")
 	httpRequestRuntimeDataAppID = appID
@@ -525,17 +526,17 @@ func (ts *HTTPRequestRuntimeDataRegistrationFlowTestSuite) TestHTTPRequestRuntim
 	ts.Require().NoError(err, "Failed to simulate Google authorization for runtime data flow")
 	ts.Require().NotEmpty(authCode, "Authorization code should not be empty")
 
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, map[string]string{
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, map[string]string{
 		"code": authCode,
-	}, "")
+	}, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete runtime data flow with authorization code")
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus)
 	ts.Require().Equal("VIEW", flowStep.Type)
 	ts.Require().True(common.HasInput(flowStep.Data.Inputs, "mobileNumber"))
 
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, map[string]string{
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, map[string]string{
 		"mobileNumber": mobileNumber,
-	}, "action_mobile")
+	}, "action_mobile", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to continue runtime data flow with mobile number")
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus)
 	ts.Require().Equal("VIEW", flowStep.Type)
@@ -546,9 +547,9 @@ func (ts *HTTPRequestRuntimeDataRegistrationFlowTestSuite) TestHTTPRequestRuntim
 	ts.Require().NotNil(otpMessage, "OTP message should be captured by mock notification server")
 	ts.Require().NotEmpty(otpMessage.OTP, "OTP should be available for verification")
 
-	flowStep, err = common.CompleteFlow(flowStep.FlowID, map[string]string{
+	flowStep, err = common.CompleteFlow(flowStep.ExecutionID, map[string]string{
 		"otp": otpMessage.OTP,
-	}, "action_otp")
+	}, "action_otp", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to complete runtime data flow with OTP")
 	ts.Require().Equal("COMPLETE", flowStep.FlowStatus, "Flow should complete after HTTP request executor")
 	ts.Require().NotEmpty(flowStep.Assertion, "Assertion should be present after flow completion")

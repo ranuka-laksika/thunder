@@ -45,6 +45,8 @@ const (
 	ExecutorNameConsent                      = "ConsentExecutor"
 	ExecutorNameOUResolver                   = "OUResolverExecutor"
 	ExecutorNameAttributeUniquenessValidator = "AttributeUniquenessValidator"
+	ExecutorNameSMSExecutor                  = "SMSExecutor"
+	ExecutorNameFederatedAuthResolver        = "FederatedAuthResolverExecutor"
 )
 
 // Executor mode constants
@@ -52,17 +54,18 @@ const (
 	ExecutorModeSend     = "send"
 	ExecutorModeGenerate = "generate"
 	ExecutorModeVerify   = "verify"
+	ExecutorModeIdentify = "identify"
+	ExecutorModeResolve  = "resolve"
 )
 
 // User attribute and input constants
 const (
-	userAttributeUsername     = "username"
-	userAttributePassword     = "password"
-	userAttributeUserID       = "userID"
-	userAttributeMobileNumber = "mobileNumber"
-	userAttributeEmail        = "email"
-	userAttributeGroups       = "groups"
-	userAttributeSub          = "sub"
+	userAttributeUsername = "username"
+	userAttributePassword = "password"
+	userAttributeUserID   = "userID"
+	userAttributeEmail    = "email"
+	userAttributeGroups   = "groups"
+	userAttributeSub      = "sub"
 
 	userInputCode             = "code"
 	userInputNonce            = "nonce"
@@ -76,6 +79,9 @@ const (
 	ouIDKey        = "ouId"
 	defaultOUIDKey = "defaultOUID"
 	userTypeKey    = "userType"
+	// TODO: Revisit when the generic OTP executor is implemented.
+	runtimeKeySMSOTPMobileNumber = "smsOTPMobileNumber"
+	runtimeKeySMSOTPPhoneAttr    = "smsOTPPhoneAttr"
 
 	dataValueTrue  = "true"
 	dataValueFalse = "false"
@@ -83,11 +89,13 @@ const (
 
 // Executor property keys
 const (
-	propertyKeyAssignGroup      = "assignGroup"
-	propertyKeyAssignRole       = "assignRole"
-	propertyKeyRequiredScopes   = "requiredScopes"
-	propertyKeyEmailTemplate    = "emailTemplate"
-	propertyKeyAllowedUserTypes = "allowedUserTypes"
+	propertyKeyAssignGroup          = "assignGroup"
+	propertyKeyAssignRole           = "assignRole"
+	propertyKeyRequiredScopes       = "requiredScopes"
+	propertyKeyEmailTemplate        = "emailTemplate"
+	propertyKeySMSTemplate          = "smsTemplate"
+	propertyKeyAllowedUserTypes     = "allowedUserTypes"
+	propertyKeyNotificationSenderID = "senderId"
 )
 
 // nonSearchableInputs contains the list of user inputs/ attributes that are non-searchable.
@@ -105,7 +113,9 @@ var nonUserAttributes = []string{"userID", "code", "nonce", "state", "flowID",
 	common.RuntimeKeyInviteLink,
 	common.RuntimeKeyConsentID, common.RuntimeKeyStepTimeout, userInputConsentDecisions,
 	common.RuntimeKeyConsentedAttributes, common.RuntimeKeyConsentSessionToken,
-	"applicationId", "idpId", "senderId"}
+	"applicationId", "idpId", "senderId",
+	common.RuntimeKeyCandidateUsers, common.RuntimeKeyClientID, common.RuntimeKeyUserAttributesCacheTTLSeconds,
+	common.RuntimeKeyUserAmbiguous, runtimeKeySMSOTPMobileNumber, runtimeKeySMSOTPPhoneAttr}
 
 // Failure reason constants
 const (

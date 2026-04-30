@@ -203,7 +203,7 @@ var (
 				"type": "string",
 			},
 			"password": map[string]interface{}{
-				"type": "string",
+				"type":       "string",
 				"credential": true,
 			},
 			"sub": map[string]interface{}{
@@ -385,6 +385,7 @@ func (ts *GoogleRegistrationFlowTestSuite) SetupSuite() {
 	ts.config.CreatedFlowIDs = append(ts.config.CreatedFlowIDs, flowIDWithExisting)
 
 	// Create test application with the first flow
+	googleRegTestApp.OUID = googleRegTestOUID
 	appID, err := testutils.CreateApplication(googleRegTestApp)
 	if err != nil {
 		ts.T().Fatalf("Failed to create test application during setup: %v", err)
@@ -461,7 +462,7 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowInitiation(
 	// Verify flow status and type
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECT")
-	ts.Require().NotEmpty(flowStep.FlowID, "Flow ID should not be empty")
+	ts.Require().NotEmpty(flowStep.ExecutionID, "Execution ID should not be empty")
 
 	// Validate redirect information
 	ts.Require().NotEmpty(flowStep.Data, "Flow data should not be empty")
@@ -500,9 +501,9 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowCompleteSuc
 	// Verify flow status and type
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus, "Expected flow status to be INCOMPLETE")
 	ts.Require().Equal("REDIRECTION", flowStep.Type, "Expected flow type to be REDIRECT")
-	ts.Require().NotEmpty(flowStep.FlowID, "Flow ID should not be empty")
+	ts.Require().NotEmpty(flowStep.ExecutionID, "Execution ID should not be empty")
 
-	flowID := flowStep.FlowID
+	flowID := flowStep.ExecutionID
 	redirectURLStr := flowStep.Data.RedirectURL
 	ts.Require().NotEmpty(redirectURLStr, "Redirect URL should not be empty")
 
@@ -518,7 +519,7 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowCompleteSuc
 		"code": authCode,
 	}
 
-	completeFlowStep, err := common.CompleteFlow(flowID, inputs, "")
+	completeFlowStep, err := common.CompleteFlow(flowID, inputs, "", flowStep.ChallengeToken)
 	if err != nil {
 		ts.T().Fatalf("Failed to complete Google registration flow: %v", err)
 	}
@@ -567,14 +568,14 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowCompleteWit
 		ts.T().Fatalf("Failed to initiate Google registration flow: %v", err)
 	}
 
-	flowID := flowStep.FlowID
+	flowID := flowStep.ExecutionID
 
 	// Step 2: Try to complete with invalid authorization code
 	inputs := map[string]string{
 		"code": "invalid-reg-auth-code-12345",
 	}
 
-	_, err = common.CompleteFlow(flowID, inputs, "")
+	_, err = common.CompleteFlow(flowID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().Error(err, "Should fail with invalid authorization code")
 }
 
@@ -585,14 +586,14 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowCompleteWit
 		ts.T().Fatalf("Failed to initiate Google registration flow: %v", err)
 	}
 
-	flowID := flowStep.FlowID
+	flowID := flowStep.ExecutionID
 
 	// Step 2: Try to complete without providing authorization code
 	inputs := map[string]string{}
 
 	// When required inputs are missing, the flow returns INCOMPLETE status (not an error)
 	// and asks for the missing inputs again
-	flowStep, err = common.CompleteFlow(flowID, inputs, "")
+	flowStep, err = common.CompleteFlow(flowID, inputs, "", flowStep.ChallengeToken)
 	ts.Require().NoError(err, "Should not return error when inputs are missing")
 	ts.Require().Equal("INCOMPLETE", flowStep.FlowStatus,
 		"Flow should remain INCOMPLETE when required inputs are missing")
@@ -627,7 +628,7 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowDuplicateUs
 		"code": authCode,
 	}
 
-	completeFlowStep, err := common.CompleteFlow(flowStep.FlowID, inputs, "")
+	completeFlowStep, err := common.CompleteFlow(flowStep.ExecutionID, inputs, "", flowStep.ChallengeToken)
 	if err != nil {
 		ts.T().Fatalf("Failed to complete first Google registration flow: %v", err)
 	}
@@ -656,7 +657,7 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowDuplicateUs
 		"code": authCode2,
 	}
 
-	completeFlowStep2, err := common.CompleteFlow(flowStep2.FlowID, inputs2, "")
+	completeFlowStep2, err := common.CompleteFlow(flowStep2.ExecutionID, inputs2, "", flowStep2.ChallengeToken)
 	if err != nil {
 		ts.T().Fatalf("Failed to complete second Google registration flow: %v", err)
 	}
@@ -684,7 +685,7 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowWithExistin
 		"code": authCode,
 	}
 
-	completeFlowStep, err := common.CompleteFlow(flowStep.FlowID, inputs, "")
+	completeFlowStep, err := common.CompleteFlow(flowStep.ExecutionID, inputs, "", flowStep.ChallengeToken)
 	if err != nil {
 		ts.T().Fatalf("Failed to complete first Google registration flow: %v", err)
 	}
@@ -725,7 +726,7 @@ func (ts *GoogleRegistrationFlowTestSuite) TestGoogleRegistrationFlowWithExistin
 		"code": authCode2,
 	}
 
-	completeFlowStep2, err := common.CompleteFlow(flowStep2.FlowID, inputs2, "")
+	completeFlowStep2, err := common.CompleteFlow(flowStep2.ExecutionID, inputs2, "", flowStep2.ChallengeToken)
 	if err != nil {
 		ts.T().Fatalf("Failed to complete second Google registration flow: %v", err)
 	}

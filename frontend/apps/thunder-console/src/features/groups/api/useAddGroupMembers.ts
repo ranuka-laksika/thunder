@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import GroupQueryKeys from '../constants/group-query-keys';
 import type {Member} from '../models/group';
@@ -52,7 +52,7 @@ export default function useAddGroupMembers(): UseMutationResult<void, Error, Add
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify({members}),
+        data: {members},
       } as unknown as Parameters<typeof http.request>[0]);
     },
     onSuccess: (_data, {groupId}) => {

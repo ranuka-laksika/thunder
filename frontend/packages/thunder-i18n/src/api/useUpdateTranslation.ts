@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import I18nQueryKeys from '../constants/i18n-query-keys';
 import type {UpdateTranslationVariables} from '../models/requests';
 import type {TranslationResponse} from '../models/responses';
@@ -84,7 +84,7 @@ export default function useUpdateTranslation(
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify({value}),
+        data: {value},
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

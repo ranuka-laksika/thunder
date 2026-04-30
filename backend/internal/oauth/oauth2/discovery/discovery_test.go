@@ -21,6 +21,8 @@ package discovery
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,10 +33,35 @@ import (
 
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
 	"github.com/asgardeo/thunder/internal/system/config"
+	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 )
+
+// testPKIService is a minimal PKIServiceInterface implementation for discovery tests.
+type testPKIService struct {
+	algorithms []string
+}
+
+func (m *testPKIService) GetSupportedSigningAlgorithms() []string {
+	return m.algorithms
+}
+
+func (m *testPKIService) GetPrivateKey(string) (crypto.PrivateKey, *serviceerror.ServiceError) {
+	return nil, nil
+}
+
+func (m *testPKIService) GetCertThumbprint(string) string { return "" }
+
+func (m *testPKIService) GetX509Certificate(string) (*x509.Certificate, *serviceerror.ServiceError) {
+	return nil, nil
+}
+
+func (m *testPKIService) GetAllX509Certificates() (map[string]*x509.Certificate, *serviceerror.ServiceError) {
+	return nil, nil
+}
 
 type DiscoveryTestSuite struct {
 	suite.Suite
+	pkiService       *testPKIService
 	discoveryService DiscoveryServiceInterface
 	handler          discoveryHandlerInterface
 }
@@ -57,7 +84,10 @@ func (suite *DiscoveryTestSuite) SetupTest() {
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	suite.discoveryService = newDiscoveryService()
+	suite.pkiService = &testPKIService{
+		algorithms: []string{"RS256"},
+	}
+	suite.discoveryService = newDiscoveryService(suite.pkiService)
 	suite.handler = newDiscoveryHandler(suite.discoveryService)
 }
 
@@ -97,6 +127,9 @@ func (suite *DiscoveryTestSuite) TestOAuth2AuthorizationServerMetadata() {
 
 	// Verify only implemented response types are present
 	assert.Equal(suite.T(), []string{"code"}, metadata.ResponseTypesSupported)
+
+	// Verify RFC 9207 advertisement
+	assert.True(suite.T(), metadata.AuthorizationResponseIssParameterSupported)
 }
 
 func (suite *DiscoveryTestSuite) TestOIDCDiscovery() {
@@ -118,13 +151,16 @@ func (suite *DiscoveryTestSuite) TestOIDCDiscovery() {
 
 	// Verify OIDC-specific fields
 	assert.Contains(suite.T(), metadata.SubjectTypesSupported, constants.SubjectTypePublic)
-	assert.Contains(suite.T(), metadata.IDTokenSigningAlgValuesSupported, constants.SigningAlgorithmRS256)
+	assert.Contains(suite.T(), metadata.IDTokenSigningAlgValuesSupported, "RS256")
 	assert.Contains(suite.T(), metadata.ClaimsSupported, constants.ClaimSub)
 	assert.Contains(suite.T(), metadata.ClaimsSupported, constants.ClaimIss)
 	assert.Contains(suite.T(), metadata.ClaimsSupported, constants.ClaimAud)
 
 	// Verify claims parameter support
 	assert.True(suite.T(), metadata.ClaimsParameterSupported, "claims_parameter_supported should be true")
+
+	// Verify RFC 9207 advertisement (inherited from embedded OAuth2AuthorizationServerMetadata)
+	assert.True(suite.T(), metadata.AuthorizationResponseIssParameterSupported)
 }
 
 // TestGrantTypeIsValid tests the GrantType.IsValid() method
@@ -221,17 +257,6 @@ func TestGetSupportedSubjectTypes(t *testing.T) {
 	assert.Equal(t, []string{"public"}, supported)
 }
 
-// TestGetSupportedIDTokenSigningAlgorithms tests the GetSupportedIDTokenSigningAlgorithms function
-// This is a standalone test for constants - doesn't require discovery service setup
-func TestGetSupportedIDTokenSigningAlgorithms(t *testing.T) {
-	supported := constants.GetSupportedIDTokenSigningAlgorithms()
-
-	assert.NotNil(t, supported)
-	assert.Equal(t, 1, len(supported))
-	assert.Contains(t, supported, constants.SigningAlgorithmRS256)
-	assert.Equal(t, []string{"RS256"}, supported)
-}
-
 // TestGetStandardClaims tests the GetStandardClaims function
 // This is a standalone test for constants - doesn't require discovery service setup
 func TestGetStandardClaims(t *testing.T) {
@@ -249,7 +274,7 @@ func TestGetStandardClaims(t *testing.T) {
 
 func (suite *DiscoveryTestSuite) TestInitialize() {
 	mux := http.NewServeMux()
-	service := Initialize(mux)
+	service := Initialize(mux, suite.pkiService)
 
 	assert.NotNil(suite.T(), service)
 	assert.Implements(suite.T(), (*DiscoveryServiceInterface)(nil), service)
@@ -291,7 +316,7 @@ func (suite *DiscoveryTestSuite) TestGetBaseURL_WithPublicHostname() {
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	service := newDiscoveryService()
+	service := newDiscoveryService(suite.pkiService)
 	metadata := service.GetOAuth2AuthorizationServerMetadata(context.Background())
 	assert.Contains(suite.T(), metadata.AuthorizationEndpoint, "public.thunder.io")
 	config.ResetThunderRuntime()
@@ -311,8 +336,32 @@ func (suite *DiscoveryTestSuite) TestGetBaseURL_WithHTTPOnly() {
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	service := newDiscoveryService()
+	service := newDiscoveryService(suite.pkiService)
 	metadata := service.GetOAuth2AuthorizationServerMetadata(context.Background())
 	assert.Contains(suite.T(), metadata.AuthorizationEndpoint, "http://")
 	config.ResetThunderRuntime()
+}
+
+func (suite *DiscoveryTestSuite) TestOIDCDiscovery_MultipleKeyAlgorithms() {
+	multiPKI := &testPKIService{
+		algorithms: []string{"RS256", "ES256", "EdDSA"},
+	}
+	svc := newDiscoveryService(multiPKI)
+	algs := svc.GetOIDCMetadata(context.Background()).IDTokenSigningAlgValuesSupported
+
+	assert.Equal(suite.T(), 3, len(algs))
+	assert.Contains(suite.T(), algs, "RS256")
+	assert.Contains(suite.T(), algs, "ES256")
+	assert.Contains(suite.T(), algs, "EdDSA")
+}
+
+func (suite *DiscoveryTestSuite) TestOIDCDiscovery_DeduplicatesAlgorithms() {
+	multiRSA := &testPKIService{
+		algorithms: []string{"RS256"},
+	}
+	svc := newDiscoveryService(multiRSA)
+	algs := svc.GetOIDCMetadata(context.Background()).IDTokenSigningAlgValuesSupported
+
+	assert.Equal(suite.T(), 1, len(algs))
+	assert.Contains(suite.T(), algs, "RS256")
 }

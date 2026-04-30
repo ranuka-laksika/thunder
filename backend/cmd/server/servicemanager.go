@@ -25,13 +25,24 @@ import (
 	"github.com/asgardeo/thunder/internal/application"
 	"github.com/asgardeo/thunder/internal/attributecache"
 	"github.com/asgardeo/thunder/internal/authn"
-	"github.com/asgardeo/thunder/internal/authnprovider"
+	authnAssert "github.com/asgardeo/thunder/internal/authn/assert"
+	authncm "github.com/asgardeo/thunder/internal/authn/common"
+	authnConsent "github.com/asgardeo/thunder/internal/authn/consent"
+	"github.com/asgardeo/thunder/internal/authn/github"
+	"github.com/asgardeo/thunder/internal/authn/google"
+	authnOAuth "github.com/asgardeo/thunder/internal/authn/oauth"
+	authnOIDC "github.com/asgardeo/thunder/internal/authn/oidc"
+	"github.com/asgardeo/thunder/internal/authn/otp"
+	"github.com/asgardeo/thunder/internal/authn/passkey"
+	authnprovidermgr "github.com/asgardeo/thunder/internal/authnprovider/manager"
 	"github.com/asgardeo/thunder/internal/authz"
 	"github.com/asgardeo/thunder/internal/cert"
 	"github.com/asgardeo/thunder/internal/consent"
 	layoutmgt "github.com/asgardeo/thunder/internal/design/layout/mgt"
 	"github.com/asgardeo/thunder/internal/design/resolve"
 	thememgt "github.com/asgardeo/thunder/internal/design/theme/mgt"
+	"github.com/asgardeo/thunder/internal/entity"
+	"github.com/asgardeo/thunder/internal/entityprovider"
 	flowcore "github.com/asgardeo/thunder/internal/flow/core"
 	"github.com/asgardeo/thunder/internal/flow/executor"
 	"github.com/asgardeo/thunder/internal/flow/flowexec"
@@ -39,6 +50,7 @@ import (
 	flowmgt "github.com/asgardeo/thunder/internal/flow/mgt"
 	"github.com/asgardeo/thunder/internal/group"
 	"github.com/asgardeo/thunder/internal/idp"
+	"github.com/asgardeo/thunder/internal/inboundclient"
 	"github.com/asgardeo/thunder/internal/notification"
 	"github.com/asgardeo/thunder/internal/oauth"
 	"github.com/asgardeo/thunder/internal/ou"
@@ -50,6 +62,7 @@ import (
 	"github.com/asgardeo/thunder/internal/system/email"
 	"github.com/asgardeo/thunder/internal/system/export"
 	i18nmgt "github.com/asgardeo/thunder/internal/system/i18n/mgt"
+	"github.com/asgardeo/thunder/internal/system/importer"
 	"github.com/asgardeo/thunder/internal/system/jose"
 	"github.com/asgardeo/thunder/internal/system/jose/jwt"
 	"github.com/asgardeo/thunder/internal/system/log"
@@ -59,7 +72,6 @@ import (
 	"github.com/asgardeo/thunder/internal/system/sysauthz"
 	"github.com/asgardeo/thunder/internal/system/template"
 	"github.com/asgardeo/thunder/internal/user"
-	"github.com/asgardeo/thunder/internal/userprovider"
 	"github.com/asgardeo/thunder/internal/userschema"
 )
 
@@ -76,7 +88,7 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 		logger.Fatal("Failed to initialize certificate service", log.Error(err))
 	}
 
-	jwtService, _, err := jose.Initialize(pkiService)
+	jwtService, jweService, err := jose.Initialize(pkiService)
 	if err != nil {
 		logger.Fatal("Failed to initialize JOSE services", log.Error(err))
 	}
@@ -126,8 +138,17 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	}
 	exporters = append(exporters, userSchemaExporter)
 
+	// Initialize entity service
+	entityService, err := entity.Initialize(hashService, userSchemaService, ouService)
+	if err != nil {
+		logger.Fatal("Failed to initialize EntityService", log.Error(err))
+	}
+
+	// Initialize entity provider
+	entityProvider := entityprovider.InitializeEntityProvider(entityService)
+
 	userService, ouUserResolver, userExporter, err := user.Initialize(
-		mux, ouService, userSchemaService, hashService, ouAuthzService,
+		mux, entityService, ouService, userSchemaService, ouAuthzService,
 	)
 	if err != nil {
 		logger.Fatal("Failed to initialize UserService", log.Error(err))
@@ -135,7 +156,7 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	exporters = append(exporters, userExporter)
 
 	groupService, ouGroupResolver, err := group.Initialize(
-		mux, ouService, userService, userSchemaService, ouAuthzService,
+		mux, ouService, entityService, userSchemaService, ouAuthzService,
 	)
 	if err != nil {
 		logger.Fatal("Failed to initialize GroupService", log.Error(err))
@@ -151,7 +172,7 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	}
 	exporters = append(exporters, resourceExporter)
 	roleService, roleExporter, err := role.Initialize(
-		mux, userService, groupService, ouService, resourceService, userSchemaService,
+		mux, entityService, groupService, ouService, resourceService, userSchemaService,
 	)
 	if err != nil {
 		logger.Fatal("Failed to initialize RoleService", log.Error(err))
@@ -165,7 +186,13 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	}
 	exporters = append(exporters, idpExporter)
 
-	_, otpService, notificationExporter, err := notification.Initialize(mux, jwtService)
+	templateService, err := template.Initialize()
+	if err != nil {
+		logger.Fatal("Failed to initialize template service", log.Error(err))
+	}
+
+	_, otpService, notifSenderSvc, notificationExporter, err := notification.Initialize(
+		mux, jwtService, templateService)
 	if err != nil {
 		logger.Fatal("Failed to initialize NotificationService", log.Error(err))
 	}
@@ -174,17 +201,35 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	// Initialize MCP server
 	mcpServer := mcp.Initialize(mux, jwtService)
 
-	// Initialize authn provider
-	authnProvider := authnprovider.InitializeAuthnProvider(userService)
+	// Initialize passkey service
+	passkeyService := passkey.Initialize(entityService)
 
-	// Initialize user provider based on configuration
-	userProvider := userprovider.InitializeUserProvider(userService)
+	// Initialize otp core service
+	otpCoreService := otp.Initialize(otpService, entityProvider)
+
+	// Initialize federated authentication services.
+	oauthAuthnService := authnOAuth.Initialize(idpService, entityProvider)
+	oidcAuthnService := authnOIDC.Initialize(idpService, entityProvider, jwtService)
+	googleAuthnService := google.Initialize(idpService, entityProvider, jwtService)
+	githubAuthnService := github.Initialize(idpService, entityProvider)
+
+	federatedAuths := map[idp.IDPType]authncm.FederatedAuthenticator{
+		idp.IDPTypeOAuth:  oauthAuthnService,
+		idp.IDPTypeOIDC:   oidcAuthnService,
+		idp.IDPTypeGoogle: googleAuthnService,
+		idp.IDPTypeGitHub: githubAuthnService,
+	}
+
+	// Initialize authn provider
+	authnProvider := authnprovidermgr.InitializeAuthnProviderManager(entityService, passkeyService, otpCoreService,
+		federatedAuths)
 
 	// Initialize authentication services.
-	_, authSvcRegistry := authn.Initialize(
-		mux, mcpServer, idpService, jwtService, userService,
-		userProvider, otpService, authnProvider, consentService,
-	)
+	authAssertGen := authnAssert.Initialize()
+	consentEnforcer := authnConsent.Initialize(consentService, jwtService)
+
+	authn.Initialize(mux, mcpServer, idpService, jwtService, authnProvider, authAssertGen, passkeyService,
+		otpCoreService, oauthAuthnService, oidcAuthnService, googleAuthnService, githubAuthnService)
 
 	attributeCacheService := attributecache.Initialize()
 
@@ -197,13 +242,10 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 			"EmailExecutor will be registered but will not send emails.", log.Error(err))
 		emailClient = nil
 	}
-	templateService, err := template.Initialize()
-	if err != nil {
-		logger.Fatal("Failed to initialize template service", log.Error(err))
-	}
-	execRegistry := executor.Initialize(flowFactory, ouService,
-		idpService, otpService, jwtService, authSvcRegistry, authZService, userSchemaService, observabilitySvc,
-		groupService, roleService, userProvider, attributeCacheService, emailClient, templateService)
+	execRegistry := executor.Initialize(flowFactory, ouService, idpService, notifSenderSvc, jwtService, authAssertGen,
+		consentEnforcer, authnProvider, otpCoreService, passkeyService, authZService, userSchemaService,
+		observabilitySvc, groupService, roleService, entityProvider, attributeCacheService, emailClient,
+		templateService, oauthAuthnService, oidcAuthnService, githubAuthnService, googleAuthnService)
 
 	flowMgtService, flowMgtExporter, err := flowmgt.Initialize(mux, mcpServer, flowFactory, execRegistry, graphCache)
 	if err != nil {
@@ -228,9 +270,16 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	}
 	exporters = append(exporters, layoutExporter)
 
+	inboundClientService, err := inboundclient.Initialize(
+		certservice, entityProvider,
+		themeMgtService, layoutMgtService, flowMgtService, userSchemaService, consentService)
+	if err != nil {
+		logger.Fatal("Failed to initialize InboundClientService", log.Error(err))
+	}
+
+	// TODO: Remove entityService dependency after finalizing declarative resource loading pattern
 	applicationService, applicationExporter, err := application.Initialize(
-		mux, mcpServer, certservice, flowMgtService, themeMgtService, layoutMgtService,
-		userSchemaService, consentService)
+		mux, mcpServer, entityProvider, entityService, inboundClientService, ouService)
 	if err != nil {
 		logger.Fatal("Failed to initialize ApplicationService", log.Error(err))
 	}
@@ -245,6 +294,22 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	// Initialize export service with collected exporters
 	_ = export.Initialize(mux, exporters)
 
+	// Initialize import service
+	_ = importer.Initialize(
+		mux,
+		applicationService,
+		idpService,
+		flowMgtService,
+		ouService,
+		userSchemaService,
+		roleService,
+		resourceService,
+		themeMgtService,
+		layoutMgtService,
+		userService,
+		i18nService,
+	)
+
 	flowExecService, err := flowexec.Initialize(mux, flowMgtService, applicationService, execRegistry,
 		observabilitySvc)
 	if err != nil {
@@ -252,8 +317,9 @@ func registerServices(mux *http.ServeMux) jwt.JWTServiceInterface {
 	}
 
 	// Initialize OAuth services.
-	err = oauth.Initialize(mux, applicationService, jwtService, flowExecService, observabilitySvc,
-		pkiService, ouService, attributeCacheService)
+	err = oauth.Initialize(mux, applicationService, inboundClientService, authnProvider, jwtService, jweService,
+		flowExecService, observabilitySvc, pkiService, ouService, attributeCacheService, authZService, entityProvider,
+		resourceService)
 	if err != nil {
 		logger.Fatal("Failed to initialize OAuth services", log.Error(err))
 	}

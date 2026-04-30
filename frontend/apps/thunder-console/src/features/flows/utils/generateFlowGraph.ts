@@ -74,6 +74,29 @@ export default function generateFlowGraph(options: FlowGeneratorOptions): Create
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metaComponents: any[] = [];
 
+  // Self Sign Up Link component — shared across auth blocks
+  const selfSignUpLink = {
+    category: 'DISPLAY',
+    type: 'RICH_TEXT',
+    id: 'self_sign_up_link',
+    label:
+      '<p class="rich-text-paragraph"><span class="rich-text-pre-wrap">Don\'t have an account? </span>' +
+      '<a href="{{meta(application.sign_up_url)}}" target="_blank" rel="noopener noreferrer" class="rich-text-link">' +
+      '<span class="rich-text-pre-wrap">Sign up</span></a></p>',
+  };
+
+  // Application Logo
+  metaComponents.push({
+    category: 'DISPLAY',
+    type: 'IMAGE',
+    id: 'image',
+    src: '{{meta(application.logoUrl)}}',
+    alt: '{{t(signin:images.app_logo.alt)}}',
+    height: '60',
+    width: '',
+    resourceType: 'ELEMENT',
+  });
+
   // Header
   metaComponents.push({
     type: 'TEXT',
@@ -184,7 +207,7 @@ export default function generateFlowGraph(options: FlowGeneratorOptions): Create
         label: 'Sign in with Google',
         variant: 'OUTLINED',
         eventType: 'TRIGGER',
-        startIcon: {icon: 'google'},
+        image: 'assets/images/icons/google.svg',
       });
 
       promptPrompts.push({
@@ -202,7 +225,7 @@ export default function generateFlowGraph(options: FlowGeneratorOptions): Create
         label: 'Sign in with GitHub',
         variant: 'OUTLINED',
         eventType: 'TRIGGER',
-        startIcon: {icon: 'github'},
+        image: 'assets/images/icons/github.svg',
       });
 
       promptPrompts.push({
@@ -218,6 +241,11 @@ export default function generateFlowGraph(options: FlowGeneratorOptions): Create
       id: 'block_social',
       components: socialComponents,
     });
+  }
+
+  // Self Sign Up Link — always at the bottom, after all auth options
+  if (hasBasicAuth || hasPasskey) {
+    metaComponents.push(selfSignUpLink);
   }
 
   // Connect PROMPT node

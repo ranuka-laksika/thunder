@@ -32,10 +32,11 @@ import (
 	appmodel "github.com/asgardeo/thunder/internal/application/model"
 	authncm "github.com/asgardeo/thunder/internal/authn/common"
 	consentauthn "github.com/asgardeo/thunder/internal/authn/consent"
-	"github.com/asgardeo/thunder/internal/authnprovider"
+	authnprovidercm "github.com/asgardeo/thunder/internal/authnprovider/common"
 	"github.com/asgardeo/thunder/internal/consent"
 	"github.com/asgardeo/thunder/internal/flow/common"
 	"github.com/asgardeo/thunder/internal/flow/core"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	i18ncore "github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/tests/mocks/authn/consentenforcermock"
@@ -87,14 +88,14 @@ func createMockExecutorWithInputs(t *testing.T) *coremock.ExecutorInterfaceMock 
 
 func buildConsentNodeContext() *core.NodeContext {
 	return &core.NodeContext{
-		Context: context.Background(),
-		FlowID:  "flow-123",
-		AppID:   "app-123",
+		Context:     context.Background(),
+		ExecutionID: "flow-123",
+		AppID:       "app-123",
 		AuthenticatedUser: authncm.AuthenticatedUser{
 			IsAuthenticated: true,
 			UserID:          testUserID,
-			AvailableAttributes: &authnprovider.AvailableAttributes{
-				Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+			AvailableAttributes: &authnprovidercm.AttributesResponse{
+				Attributes: map[string]*authnprovidercm.AttributeResponse{
 					"email": nil,
 					"phone": nil,
 					"name":  nil,
@@ -105,7 +106,7 @@ func buildConsentNodeContext() *core.NodeContext {
 		RuntimeData:    map[string]string{},
 		NodeProperties: map[string]interface{}{},
 		Application: appmodel.Application{
-			Assertion: &appmodel.AssertionConfig{
+			Assertion: &inboundmodel.AssertionConfig{
 				UserAttributes: []string{"email", "phone"},
 			},
 		},
@@ -270,7 +271,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_NoInputs_ResolveConsent_Clien
 
 	suite.mockConsentEnforcer.On("ResolveConsent", mock.Anything, "default", "app-123", "user-123",
 		mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &serviceerror.I18nServiceError{
+		Return(nil, &serviceerror.ServiceError{
 			Type: serviceerror.ClientErrorType,
 			ErrorDescription: i18ncore.I18nMessage{
 				DefaultValue: "consent config not found",
@@ -295,7 +296,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_NoInputs_ResolveConsent_Serve
 
 	suite.mockConsentEnforcer.On("ResolveConsent", mock.Anything, "default", "app-123", "user-123",
 		mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &serviceerror.I18nServiceError{
+		Return(nil, &serviceerror.ServiceError{
 			Type: serviceerror.ServerErrorType,
 		})
 
@@ -461,7 +462,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_HasInputs_AllApproved_Success
 
 	ctx := buildConsentNodeContext()
 	ctx.UserInputs[userInputConsentDecisions] = string(decisionsJSON)
-	ctx.Application.LoginConsent = &appmodel.LoginConsentConfig{
+	ctx.Application.LoginConsent = &inboundmodel.LoginConsentConfig{
 		ValidityPeriod: 86400,
 	}
 
@@ -701,7 +702,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_HasInputs_RecordConsent_Clien
 
 	suite.mockConsentEnforcer.On("RecordConsent", mock.Anything, mock.Anything, mock.Anything,
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &serviceerror.I18nServiceError{
+		Return(nil, &serviceerror.ServiceError{
 			Type: serviceerror.ClientErrorType,
 			ErrorDescription: i18ncore.I18nMessage{
 				DefaultValue: "invalid consent data",
@@ -734,7 +735,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_HasInputs_RecordConsent_Serve
 
 	suite.mockConsentEnforcer.On("RecordConsent", mock.Anything, mock.Anything, mock.Anything,
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, &serviceerror.I18nServiceError{
+		Return(nil, &serviceerror.ServiceError{
 			Type: serviceerror.ServerErrorType,
 		})
 
@@ -943,7 +944,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_NoInputs_AugmentedAttributes_
 	suite.mockConsentEnforcer.On("ResolveConsent",
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 		mock.Anything, mock.Anything,
-		mock.MatchedBy(func(aa *authnprovider.AvailableAttributes) bool {
+		mock.MatchedBy(func(aa *authnprovidercm.AttributesResponse) bool {
 			if aa == nil || len(aa.Attributes) == 0 {
 				return false
 			}
@@ -970,7 +971,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_NoInputs_AugmentedAttributes_
 	suite.mockConsentEnforcer.On("ResolveConsent",
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 		mock.Anything, mock.Anything,
-		mock.MatchedBy(func(aa *authnprovider.AvailableAttributes) bool {
+		mock.MatchedBy(func(aa *authnprovidercm.AttributesResponse) bool {
 			if aa == nil {
 				return false
 			}
@@ -999,7 +1000,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_NoInputs_AugmentedAttributes_
 	suite.mockConsentEnforcer.On("ResolveConsent",
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 		mock.Anything, mock.Anything,
-		mock.MatchedBy(func(aa *authnprovider.AvailableAttributes) bool {
+		mock.MatchedBy(func(aa *authnprovidercm.AttributesResponse) bool {
 			return aa != nil && func() bool { _, ok := aa.Attributes["userType"]; return ok }()
 		})).
 		Return(nil, nil)
@@ -1025,7 +1026,7 @@ func (suite *ConsentExecutorTestSuite) TestExecute_NoInputs_AugmentedAttributes_
 	suite.mockConsentEnforcer.On("ResolveConsent",
 		mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 		mock.Anything, mock.Anything,
-		mock.MatchedBy(func(aa *authnprovider.AvailableAttributes) bool {
+		mock.MatchedBy(func(aa *authnprovidercm.AttributesResponse) bool {
 			if aa == nil {
 				return false
 			}
@@ -1174,8 +1175,8 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_Nil
 
 func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_EmptyAttributes() {
 	ctx := buildConsentNodeContext()
-	ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-		Attributes: map[string]*authnprovider.AttributeMetadataResponse{},
+	ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+		Attributes: map[string]*authnprovidercm.AttributeResponse{},
 	}
 	ctx.AuthenticatedUser.UserType = testUserTypeInternal
 	ctx.AuthenticatedUser.OUID = "ou-123"
@@ -1200,8 +1201,8 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_NoS
 	ctx.AuthenticatedUser.UserType = ""
 	ctx.AuthenticatedUser.OUID = ""
 	ctx.AuthenticatedUser.UserID = ""
-	ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-		Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+	ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+		Attributes: map[string]*authnprovidercm.AttributeResponse{
 			"email": nil,
 			"phone": nil,
 		},
@@ -1250,8 +1251,8 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_Wit
 			ctx.AuthenticatedUser.UserType = tc.userType
 			ctx.AuthenticatedUser.OUID = tc.ouID
 			ctx.AuthenticatedUser.UserID = tc.userID
-			ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-				Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+			ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+				Attributes: map[string]*authnprovidercm.AttributeResponse{
 					"email": nil,
 				},
 			}
@@ -1274,8 +1275,8 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_Wit
 	ctx.AuthenticatedUser.UserType = ""
 	ctx.AuthenticatedUser.OUID = ""
 	ctx.AuthenticatedUser.UserID = "user-abc"
-	ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-		Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+	ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+		Attributes: map[string]*authnprovidercm.AttributeResponse{
 			"email": nil,
 		},
 	}
@@ -1294,8 +1295,8 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_All
 	ctx.AuthenticatedUser.UserType = testUserTypeInternal
 	ctx.AuthenticatedUser.OUID = "ou-789"
 	ctx.AuthenticatedUser.UserID = "user-xyz"
-	ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-		Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+	ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+		Attributes: map[string]*authnprovidercm.AttributeResponse{
 			"email": nil,
 		},
 	}
@@ -1318,8 +1319,8 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_Doe
 	ctx.AuthenticatedUser.UserType = testUserTypeInternal
 	ctx.AuthenticatedUser.OUID = "ou-789"
 	ctx.AuthenticatedUser.UserID = "user-xyz"
-	ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-		Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+	ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+		Attributes: map[string]*authnprovidercm.AttributeResponse{
 			"email": nil,
 			"phone": nil,
 		},
@@ -1338,11 +1339,11 @@ func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_Doe
 func (suite *ConsentExecutorTestSuite) TestBuildAugmentedAvailableAttributes_PreservesVerifications() {
 	ctx := buildConsentNodeContext()
 	ctx.AuthenticatedUser.UserType = testUserTypeInternal
-	ctx.AuthenticatedUser.AvailableAttributes = &authnprovider.AvailableAttributes{
-		Attributes: map[string]*authnprovider.AttributeMetadataResponse{
+	ctx.AuthenticatedUser.AvailableAttributes = &authnprovidercm.AttributesResponse{
+		Attributes: map[string]*authnprovidercm.AttributeResponse{
 			"email": nil,
 		},
-		Verifications: map[string]*authnprovider.VerificationResponse{
+		Verifications: map[string]*authnprovidercm.VerificationResponse{
 			"v-1": {},
 		},
 	}

@@ -26,8 +26,8 @@ vi.mock('@asgardeo/react', () => ({
   useAsgardeo: vi.fn(),
 }));
 
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useConfig: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('@thunder/shared-contexts', async (importOriginal) => {
 });
 
 const {useAsgardeo} = await import('@asgardeo/react');
-const {useConfig, useToast} = await import('@thunder/shared-contexts');
+const {useConfig, useToast} = await import('@thunder/contexts');
 
 describe('useAddRoleAssignments', () => {
   let mockHttpRequest: ReturnType<typeof vi.fn>;
@@ -116,7 +116,7 @@ describe('useAddRoleAssignments', () => {
         url: 'https://api.test.com/roles/role-1/assignments/add',
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        data: JSON.stringify({assignments}),
+        data: {assignments},
       }),
     );
   });
@@ -217,6 +217,6 @@ describe('useAddRoleAssignments', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const callArgs = mockHttpRequest.mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(callArgs.data).toBe(JSON.stringify({assignments}));
+    expect(callArgs.data).toEqual({assignments});
   });
 });

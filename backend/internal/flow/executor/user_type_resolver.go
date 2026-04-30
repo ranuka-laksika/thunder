@@ -82,7 +82,7 @@ func newUserTypeResolver(
 
 // Execute resolves the user type from inputs or prompts the user to select one.
 func (u *userTypeResolver) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, error) {
-	logger := u.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := u.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	logger.Debug("Executing user type resolver")
 
 	execResp := &common.ExecutorResponse{
@@ -109,7 +109,7 @@ func (u *userTypeResolver) Execute(ctx *core.NodeContext) (*common.ExecutorRespo
 // handleAuthenticationFlows handles user type resolution for authentication flows.
 func (u *userTypeResolver) handleAuthenticationFlows(ctx *core.NodeContext, execResp *common.ExecutorResponse) (
 	*common.ExecutorResponse, error) {
-	logger := u.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := u.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	// Validate that allowed user types are defined
 	if len(ctx.Application.AllowedUserTypes) == 0 {
@@ -127,7 +127,7 @@ func (u *userTypeResolver) handleAuthenticationFlows(ctx *core.NodeContext, exec
 func (u *userTypeResolver) handleRegistrationFlows(ctx *core.NodeContext, execResp *common.ExecutorResponse) (
 	*common.ExecutorResponse, error) {
 	reqCtx := ctx.Context
-	logger := u.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := u.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	allowed := ctx.Application.AllowedUserTypes
 
 	// Check for allowed user types to decide next steps
@@ -184,7 +184,7 @@ func (u *userTypeResolver) handleRegistrationFlows(ctx *core.NodeContext, execRe
 // handleUserOnboardingFlows handles user type resolution for user onboarding flows.
 func (u *userTypeResolver) handleUserOnboardingFlows(ctx *core.NodeContext,
 	execResp *common.ExecutorResponse) (*common.ExecutorResponse, error) {
-	logger := u.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := u.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	// Read optional allowedUserTypes from node properties
 	allowedUserTypes := u.getAllowedUserTypesFromProperties(ctx)
@@ -213,8 +213,9 @@ func (u *userTypeResolver) handleUserOnboardingFlows(ctx *core.NodeContext,
 			if svcErr != nil {
 				logger.Error("Failed to validate user type against selected OU",
 					log.String(userTypeKey, userType), log.String(ouIDKey, selectedOUID),
-					log.String("error", svcErr.Error))
-				return nil, fmt.Errorf("failed to validate user type against selected OU: %s", svcErr.Error)
+					log.String("error", svcErr.Error.DefaultValue))
+				return nil, fmt.Errorf("failed to validate user type against selected OU: %s",
+					svcErr.Error.DefaultValue)
 			}
 			if !isValid {
 				logger.Debug("User type not valid for selected OU",
@@ -236,7 +237,7 @@ func (u *userTypeResolver) handleUserOnboardingFlows(ctx *core.NodeContext,
 	// List all available user schemas
 	schemas, svcErr := u.userSchemaService.GetUserSchemaList(ctx.Context, 100, 0, false)
 	if svcErr != nil {
-		logger.Debug("Failed to list user schemas", log.String("error", svcErr.Error))
+		logger.Debug("Failed to list user schemas", log.String("error", svcErr.Error.DefaultValue))
 		execResp.Status = common.ExecFailure
 		execResp.FailureReason = "Failed to retrieve user types"
 		return execResp, nil
@@ -353,8 +354,9 @@ func (u *userTypeResolver) filterSchemasByOU(ctx *core.NodeContext,
 		isValid, svcErr := u.ouService.IsParent(ctx.Context, schema.OUID, selectedOUID)
 		if svcErr != nil {
 			logger.Error("Failed to check OU ancestry for schema",
-				log.String("schema", schema.Name), log.String("error", svcErr.Error))
-			return nil, fmt.Errorf("failed to check OU ancestry for schema %s: %s", schema.Name, svcErr.Error)
+				log.String("schema", schema.Name), log.String("error", svcErr.Error.DefaultValue))
+			return nil, fmt.Errorf("failed to check OU ancestry for schema %s: %s",
+				schema.Name, svcErr.Error.DefaultValue)
 		}
 		if isValid {
 			filtered = append(filtered, schema)
@@ -489,7 +491,7 @@ func (u *userTypeResolver) getUserSchemaAndOU(
 	userSchema, svcErr := u.userSchemaService.GetUserSchemaByName(ctx, userType)
 	if svcErr != nil {
 		logger.Error("Failed to resolve user schema for user type",
-			log.String(userTypeKey, userType), log.String("error", svcErr.Error))
+			log.String(userTypeKey, userType), log.String("error", svcErr.Error.DefaultValue))
 		return nil, "", fmt.Errorf("failed to resolve user schema for user type: %s", userType)
 	}
 

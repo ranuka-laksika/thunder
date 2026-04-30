@@ -47,10 +47,12 @@ paths:
                     name: "front-desk-agent"
                     description: "Front desk agent role with booking and customer management permissions"
                     ouId: "a839f4bd-39dc-4eaa-b5cc-210d8ecaee87"
+                    ouHandle: "default"
                   - id: "257e528f-eb24-48b6-884d-20460e190957"
                     name: "hotel-manager"
                     description: "Hotel manager with full property access"
                     ouId: "a839f4bd-39dc-4eaa-b5cc-210d8ecaee87"
+                    ouHandle: "default"
                 links:
                   - href: "roles?offset=2&limit=2"
                     rel: "next"
@@ -65,20 +67,32 @@ paths:
                   summary: Invalid request format
                   value:
                     code: "ROL-1001"
-                    message: "Invalid request format"
-                    description: "The request body is malformed or contains invalid data"
+                    message:
+                      key: "error.roleservice.invalid_request_format"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.invalid_request_format_description"
+                      defaultValue: "The request body is malformed or contains invalid data"
                 invalid-limit:
                   summary: Invalid limit parameter
                   value:
                     code: "ROL-1011"
-                    message: "Invalid limit parameter"
-                    description: "The limit parameter must be a positive integer"
+                    message:
+                      key: "error.roleservice.invalid_limit_parameter"
+                      defaultValue: "Invalid limit parameter"
+                    description:
+                      key: "error.roleservice.invalid_limit_parameter_description"
+                      defaultValue: "The limit parameter must be a positive integer"
                 invalid-offset:
                   summary: Invalid offset parameter
                   value:
                     code: "ROL-1012"
-                    message: "Invalid offset parameter"
-                    description: "The offset parameter must be a non-negative integer"
+                    message:
+                      key: "error.roleservice.invalid_offset_parameter"
+                      defaultValue: "Invalid offset parameter"
+                    description:
+                      key: "error.roleservice.invalid_offset_parameter_description"
+                      defaultValue: "The offset parameter must be a non-negative integer"
         "500":
           description: Internal server error
           content:
@@ -87,8 +101,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
     
     post:
       tags:
@@ -136,6 +154,7 @@ paths:
                 name: "front-desk-agent"
                 description: "Front desk agent role with booking and customer management permissions"
                 ouId: "a839f4bd-39dc-4eaa-b5cc-210d8ecaee87"
+                ouHandle: "default"
                 permissions:
                   - resourceServerId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                     permissions:
@@ -168,26 +187,42 @@ paths:
                   summary: Invalid request format
                   value:
                     code: "ROL-1001"
-                    message: "Invalid request format"
-                    description: "The request body is malformed or contains invalid data"
+                    message:
+                      key: "error.roleservice.invalid_request_format"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.invalid_request_format_description"
+                      defaultValue: "The request body is malformed or contains invalid data"
                 invalid-assignment-id:
                   summary: Invalid assignment ID
                   value:
                     code: "ROL-1007"
-                    message: "Invalid assignment ID"
-                    description: "One or more assignment IDs in the request do not exist"
+                    message:
+                      key: "error.roleservice.invalid_assignment_id"
+                      defaultValue: "Invalid assignment ID"
+                    description:
+                      key: "error.roleservice.invalid_assignment_id_description"
+                      defaultValue: "One or more assignment IDs in the request do not exist or do not match the claimed type"
                 ou-not-found:
                   summary: Organization unit not found
                   value:
                     code: "ROL-1005"
-                    message: "Organization unit not found"
-                    description: "Organization unit not found"
+                    message:
+                      key: "error.roleservice.organization_unit_not_found"
+                      defaultValue: "Organization unit not found"
+                    description:
+                      key: "error.roleservice.organization_unit_not_found_description"
+                      defaultValue: "Organization unit not found"
                 invalid-permissions:
                   summary: Invalid permissions
                   value:
                     code: "ROL-1012"
-                    message: "Invalid permissions"
-                    description: "One or more permissions do not exist in the resource management system"
+                    message:
+                      key: "error.roleservice.invalid_permissions"
+                      defaultValue: "Invalid permissions"
+                    description:
+                      key: "error.roleservice.invalid_permissions_description"
+                      defaultValue: "One or more permissions do not exist in the resource management system"
         "409":
           description: Conflict
           content:
@@ -196,8 +231,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1004"
-                message: "Role name conflict"
-                description: "A role with the same name exists under the same organization unit"
+                message:
+                  key: "error.roleservice.role_name_conflict"
+                  defaultValue: "Role name conflict"
+                description:
+                  key: "error.roleservice.role_name_conflict_description"
+                  defaultValue: "A role with the same name exists under the same organization unit"
         "500":
           description: Internal server error
           content:
@@ -206,8 +245,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
   
   /roles/{id}:
     get:
@@ -234,6 +277,7 @@ paths:
                 name: "front-desk-agent"
                 description: "Front desk agent role with booking and customer management permissions"
                 ouId: "a839f4bd-39dc-4eaa-b5cc-210d8ecaee87"
+                ouHandle: "default"
                 permissions:
                   - "create_reservation"
                   - "view_reservation"
@@ -247,8 +291,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1002"
-                message: "Invalid request format"
-                description: "Role ID is required"
+                message:
+                  key: "error.roleservice.missing_role_id"
+                  defaultValue: "Invalid request format"
+                description:
+                  key: "error.roleservice.missing_role_id_description"
+                  defaultValue: "Role ID is required"
         "404":
           description: Role not found
           content:
@@ -257,8 +305,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1003"
-                message: "Role not found"
-                description: "The role with the specified id does not exist"
+                message:
+                  key: "error.roleservice.role_not_found"
+                  defaultValue: "Role not found"
+                description:
+                  key: "error.roleservice.role_not_found_description"
+                  defaultValue: "The role with the specified id does not exist"
         "500":
           description: Internal server error
           content:
@@ -267,8 +319,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
 
     put:
       tags:
@@ -318,6 +374,7 @@ paths:
                 name: "senior-front-desk-agent"
                 description: "Senior front desk agent with additional permissions"
                 ouId: "a839f4bd-39dc-4eaa-b5cc-210d8ecaee87"
+                ouHandle: "default"
                 permissions:
                   - resourceServerId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                     permissions:
@@ -343,26 +400,42 @@ paths:
                   summary: Missing role ID
                   value:
                     code: "ROL-1002"
-                    message: "Invalid request format"
-                    description: "Role ID is required"
+                    message:
+                      key: "error.roleservice.missing_role_id"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.missing_role_id_description"
+                      defaultValue: "Role ID is required"
                 invalid-request-format:
                   summary: Invalid request format
                   value:
                     code: "ROL-1001"
-                    message: "Invalid request format"
-                    description: "The request body is malformed or contains invalid data"
+                    message:
+                      key: "error.roleservice.invalid_request_format"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.invalid_request_format_description"
+                      defaultValue: "The request body is malformed or contains invalid data"
                 ou-not-found:
                   summary: Organization unit not found
                   value:
                     code: "ROL-1005"
-                    message: "Organization unit not found"
-                    description: "Organization unit not found"
+                    message:
+                      key: "error.roleservice.organization_unit_not_found"
+                      defaultValue: "Organization unit not found"
+                    description:
+                      key: "error.roleservice.organization_unit_not_found_description"
+                      defaultValue: "Organization unit not found"
                 invalid-permissions:
                   summary: Invalid permissions
                   value:
                     code: "ROL-1012"
-                    message: "Invalid permissions"
-                    description: "One or more permissions do not exist in the resource management system"
+                    message:
+                      key: "error.roleservice.invalid_permissions"
+                      defaultValue: "Invalid permissions"
+                    description:
+                      key: "error.roleservice.invalid_permissions_description"
+                      defaultValue: "One or more permissions do not exist in the resource management system"
         "404":
           description: Role not found
           content:
@@ -371,8 +444,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1003"
-                message: "Role not found"
-                description: "The role with the specified id does not exist"
+                message:
+                  key: "error.roleservice.role_not_found"
+                  defaultValue: "Role not found"
+                description:
+                  key: "error.roleservice.role_not_found_description"
+                  defaultValue: "The role with the specified id does not exist"
         "409":
           description: Conflict
           content:
@@ -381,8 +458,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1004"
-                message: "Role name conflict"
-                description: "A role with the same name exists under the same organization unit"
+                message:
+                  key: "error.roleservice.role_name_conflict"
+                  defaultValue: "Role name conflict"
+                description:
+                  key: "error.roleservice.role_name_conflict_description"
+                  defaultValue: "A role with the same name exists under the same organization unit"
         "500":
           description: Internal server error
           content:
@@ -391,8 +472,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
 
     delete:
       tags:
@@ -419,14 +504,22 @@ paths:
                   summary: Missing role ID
                   value:
                     code: "ROL-1002"
-                    message: "Invalid request format"
-                    description: "Role ID is required"
+                    message:
+                      key: "error.roleservice.missing_role_id"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.missing_role_id_description"
+                      defaultValue: "Role ID is required"
                 cannot-delete-role:
                   summary: Cannot delete role
                   value:
                     code: "ROL-1006"
-                    message: "Cannot delete role"
-                    description: "Cannot delete role that is currently assigned to users or groups"
+                    message:
+                      key: "error.roleservice.cannot_delete_role"
+                      defaultValue: "Cannot delete role"
+                    description:
+                      key: "error.roleservice.cannot_delete_role_description"
+                      defaultValue: "Cannot delete role that is currently assigned to users or groups"
         "500":
           description: Internal server error
           content:
@@ -435,8 +528,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
 
   /roles/{id}/assignments:
     get:
@@ -503,21 +600,33 @@ paths:
                 invalid-type:
                   summary: Invalid assignee type parameter
                   value:
-                    code: "ROL-1017"
-                    message: "Invalid assignee type"
-                    description: "The type parameter must be either 'user' or 'group'"
+                    code: "ROL-1016"
+                    message:
+                      key: "error.roleservice.invalid_assignee_type"
+                      defaultValue: "Invalid assignee type"
+                    description:
+                      key: "error.roleservice.invalid_assignee_type_description"
+                      defaultValue: "The type parameter must be 'user', 'group', or 'app'"
                 invalid-limit:
                   summary: Invalid limit parameter
                   value:
                     code: "ROL-1011"
-                    message: "Invalid limit parameter"
-                    description: "The limit parameter must be a positive integer"
+                    message:
+                      key: "error.roleservice.invalid_limit_parameter"
+                      defaultValue: "Invalid limit parameter"
+                    description:
+                      key: "error.roleservice.invalid_limit_parameter_description"
+                      defaultValue: "The limit parameter must be a positive integer"
                 invalid-offset:
                   summary: Invalid offset parameter
                   value:
                     code: "ROL-1012"
-                    message: "Invalid offset parameter"
-                    description: "The offset parameter must be a non-negative integer"
+                    message:
+                      key: "error.roleservice.invalid_offset_parameter"
+                      defaultValue: "Invalid offset parameter"
+                    description:
+                      key: "error.roleservice.invalid_offset_parameter_description"
+                      defaultValue: "The offset parameter must be a non-negative integer"
         "404":
           description: Role not found
           content:
@@ -526,8 +635,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1003"
-                message: "Role not found"
-                description: "The role with the specified id does not exist"
+                message:
+                  key: "error.roleservice.role_not_found"
+                  defaultValue: "Role not found"
+                description:
+                  key: "error.roleservice.role_not_found_description"
+                  defaultValue: "The role with the specified id does not exist"
         "500":
           description: Internal server error
           content:
@@ -536,8 +649,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
 
   /roles/{id}/assignments/add:
     post:
@@ -578,20 +695,32 @@ paths:
                   summary: Invalid request format
                   value:
                     code: "ROL-1001"
-                    message: "Invalid request format"
-                    description: "The request body is malformed or contains invalid data"
+                    message:
+                      key: "error.roleservice.invalid_request_format"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.invalid_request_format_description"
+                      defaultValue: "The request body is malformed or contains invalid data"
                 invalid-assignment-id:
                   summary: Invalid assignment ID
                   value:
                     code: "ROL-1007"
-                    message: "Invalid assignment ID"
-                    description: "One or more assignment IDs in the request do not exist"
+                    message:
+                      key: "error.roleservice.invalid_assignment_id"
+                      defaultValue: "Invalid assignment ID"
+                    description:
+                      key: "error.roleservice.invalid_assignment_id_description"
+                      defaultValue: "One or more assignment IDs in the request do not exist or do not match the claimed type"
                 empty-assignments:
                   summary: Empty assignments
                   value:
                     code: "ROL-1014"
-                    message: "Empty assignments list"
-                    description: "At least one assignment must be provided"
+                    message:
+                      key: "error.roleservice.empty_assignments_list"
+                      defaultValue: "Empty assignments list"
+                    description:
+                      key: "error.roleservice.empty_assignments_list_description"
+                      defaultValue: "At least one assignment must be provided"
         "404":
           description: Role not found
           content:
@@ -600,8 +729,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1003"
-                message: "Role not found"
-                description: "The role with the specified id does not exist"
+                message:
+                  key: "error.roleservice.role_not_found"
+                  defaultValue: "Role not found"
+                description:
+                  key: "error.roleservice.role_not_found_description"
+                  defaultValue: "The role with the specified id does not exist"
         "500":
           description: Internal server error
           content:
@@ -610,8 +743,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
 
   /roles/{id}/assignments/remove:
     post:
@@ -652,14 +789,22 @@ paths:
                   summary: Invalid request format
                   value:
                     code: "ROL-1001"
-                    message: "Invalid request format"
-                    description: "The request body is malformed or contains invalid data"
+                    message:
+                      key: "error.roleservice.invalid_request_format"
+                      defaultValue: "Invalid request format"
+                    description:
+                      key: "error.roleservice.invalid_request_format_description"
+                      defaultValue: "The request body is malformed or contains invalid data"
                 empty-assignments:
                   summary: Empty assignments
                   value:
                     code: "ROL-1014"
-                    message: "Empty assignments list"
-                    description: "At least one assignment must be provided"
+                    message:
+                      key: "error.roleservice.empty_assignments_list"
+                      defaultValue: "Empty assignments list"
+                    description:
+                      key: "error.roleservice.empty_assignments_list_description"
+                      defaultValue: "At least one assignment must be provided"
         "404":
           description: Role not found
           content:
@@ -668,8 +813,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-1003"
-                message: "Role not found"
-                description: "The role with the specified id does not exist"
+                message:
+                  key: "error.roleservice.role_not_found"
+                  defaultValue: "Role not found"
+                description:
+                  key: "error.roleservice.role_not_found_description"
+                  defaultValue: "The role with the specified id does not exist"
         "500":
           description: Internal server error
           content:
@@ -678,8 +827,12 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: "ROL-5000"
-                message: "Internal server error"
-                description: "An unexpected error occurred while processing the request"
+                message:
+                  key: "error.internal_server_error"
+                  defaultValue: "Internal server error"
+                description:
+                  key: "error.internal_server_error_description"
+                  defaultValue: "An unexpected error occurred while processing the request"
 
 components:
   securitySchemes:
@@ -722,6 +875,7 @@ components:
         enum:
           - user
           - group
+          - app
       description: |
         Filter assignments by assignee type. When omitted, assignments of all types are returned.
     includeQueryParam:
@@ -744,13 +898,14 @@ components:
         id:
           type: string
           format: uuid
-          description: "ID of the user or group being assigned"
+          description: "ID of the user, app, or group being assigned"
         type:
           type: string
           enum:
             - user
             - group
-          description: "Type of entity being assigned (user or group)"
+            - app
+          description: "Type of entity being assigned (user, app, or group)"
         display:
           type: string
           readOnly: true
@@ -763,13 +918,14 @@ components:
         id:
           type: string
           format: uuid
-          description: "ID of the user or group being assigned"
+          description: "ID of the user, app, or group being assigned"
         type:
           type: string
           enum:
             - user
             - group
-          description: "Type of entity being assigned (user or group)"
+            - app
+          description: "Type of entity being assigned (user, app, or group)"
 
     ResourcePermissions:
       type: object
@@ -804,6 +960,10 @@ components:
           type: string
           format: uuid
           description: "ID of the organization unit this role belongs to"
+        ouHandle:
+          type: string
+          readOnly: true
+          description: "Handle of the organization unit this role belongs to"
 
     Role:
       type: object
@@ -824,6 +984,10 @@ components:
           type: string
           format: uuid
           description: "ID of the organization unit this role belongs to"
+        ouHandle:
+          type: string
+          readOnly: true
+          description: "Handle of the organization unit this role belongs to"
         permissions:
           type: array
           items:
@@ -963,10 +1127,20 @@ components:
           description: Error code
           example: "ROL-1001"
         message:
-          type: string
-          description: Error message
-          example: "Invalid request format"
+          $ref: '#/components/schemas/I18nMessage'
         description:
+          $ref: '#/components/schemas/I18nMessage'
+
+    I18nMessage:
+      type: object
+      description: Internationalized message with translation key and default value.
+      required:
+        - key
+        - defaultValue
+      properties:
+        key:
           type: string
-          description: Detailed error description
-          example: "The request body is malformed or contains invalid data"
+          description: Translation key for fetching localized message.
+        defaultValue:
+          type: string
+          description: Default message in English (fallback).

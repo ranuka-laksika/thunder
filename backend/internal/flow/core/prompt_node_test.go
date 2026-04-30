@@ -46,7 +46,7 @@ func (s *PromptOnlyNodeTestSuite) TestNewPromptOnlyNode() {
 
 func (s *PromptOnlyNodeTestSuite) TestExecuteNoInputs() {
 	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
-	ctx := &NodeContext{FlowID: "test-flow", UserInputs: map[string]string{}}
+	ctx := &NodeContext{ExecutionID: "test-flow", UserInputs: map[string]string{}}
 
 	resp, err := node.Execute(ctx)
 
@@ -87,7 +87,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithRequiredData() {
 				},
 			})
 
-			ctx := &NodeContext{FlowID: "test-flow", CurrentAction: "submit", UserInputs: tt.userInputs}
+			ctx := &NodeContext{ExecutionID: "test-flow", CurrentAction: "submit", UserInputs: tt.userInputs}
 			resp, err := node.Execute(ctx)
 
 			s.Nil(err)
@@ -119,7 +119,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithOptionalData() {
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "submit",
 		UserInputs:    map[string]string{"username": "testuser"},
 	}
@@ -145,7 +145,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteMissingRequiredOnly() {
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "submit",
 		UserInputs:    map[string]string{"nickname": "testnick"},
 	}
@@ -191,9 +191,9 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithVerboseModeEnabled() {
 
 	// Test with verbose mode enabled
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
-		Verbose:    true,
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
 	}
 	resp, err := node.Execute(ctx)
 
@@ -230,9 +230,9 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithVerboseModeDisabled() {
 
 	// Test with verbose mode disabled (default)
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
-		Verbose:    false,
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     false,
 	}
 	resp, err := node.Execute(ctx)
 
@@ -257,9 +257,9 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteVerboseModeNoMeta() {
 
 	// Test with verbose mode enabled but no meta defined
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
-		Verbose:    true,
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
 	}
 	resp, err := node.Execute(ctx)
 
@@ -289,7 +289,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithSets_ActionWithInputs() {
 
 	// Select action_001 but don't provide inputs
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "action_001",
 		UserInputs:    map[string]string{},
 	}
@@ -320,7 +320,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithSets_ActionWithoutInputs() {
 
 	// Select action_002 which has no inputs
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "action_002",
 		UserInputs:    map[string]string{},
 	}
@@ -348,7 +348,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithSets_ActionWithInputsProvided()
 
 	// Select action_001 with all inputs provided
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "action_001",
 		UserInputs: map[string]string{
 			"username": "testuser",
@@ -378,7 +378,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithSets_NoActionSelected() {
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "",
 		UserInputs:    map[string]string{},
 	}
@@ -407,7 +407,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithInvalidAction() {
 
 	// Select an action that doesn't exist
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "unknown_action",
 		UserInputs:    map[string]string{},
 	}
@@ -435,7 +435,7 @@ func (s *PromptOnlyNodeTestSuite) TestAutoSelectSingleAction_NoInputs() {
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "", // No action selected
 		UserInputs:    map[string]string{},
 	}
@@ -465,7 +465,7 @@ func (s *PromptOnlyNodeTestSuite) TestAutoSelectSingleAction_WithInputsProvided(
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "", // No action selected
 		UserInputs: map[string]string{
 			"username": "testuser",
@@ -498,7 +498,7 @@ func (s *PromptOnlyNodeTestSuite) TestAutoSelectSingleAction_WithMissingInputs()
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "",                  // No action selected
 		UserInputs:    map[string]string{}, // No inputs
 	}
@@ -529,7 +529,7 @@ func (s *PromptOnlyNodeTestSuite) TestAutoSelectSingleAction_MultipleActionsNoAu
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "", // No action selected
 		UserInputs:    map[string]string{},
 	}
@@ -556,8 +556,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithFailureReason() {
 
 	// Context with failure reason in runtime data
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		RuntimeData: map[string]string{
 			"failureReason": "Authentication failed",
 		},
@@ -586,7 +586,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithFailureReason_ClearsUserInputs(
 
 	// User submitted inputs, but downstream task failed - routed back with failureReason
 	ctx := &NodeContext{
-		FlowID: "test-flow",
+		ExecutionID: "test-flow",
 		UserInputs: map[string]string{
 			"username": "takenuser",
 			"password": "secret",
@@ -618,7 +618,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithFailureReason_ClearsCurrentActi
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "submit",
 		UserInputs: map[string]string{
 			"email": "existing@example.com",
@@ -650,8 +650,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithEmptyFailureReason() {
 
 	// Context with empty failure reason
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		RuntimeData: map[string]string{
 			"failureReason": "",
 		},
@@ -679,7 +679,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithNilRuntimeData() {
 
 	// Context with nil runtime data
 	ctx := &NodeContext{
-		FlowID:      "test-flow",
+		ExecutionID: "test-flow",
 		UserInputs:  map[string]string{},
 		RuntimeData: nil,
 	}
@@ -709,7 +709,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteInvalidActionReturnsFailure() {
 	// Provide all required inputs but with an action that matches but has no nextNode
 	// This simulates when getNextNodeForActionRef returns empty string
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "valid_action",
 		UserInputs: map[string]string{
 			"username": "testuser",
@@ -959,7 +959,7 @@ func (s *PromptOnlyNodeTestSuite) TestAutoSelectClearsActionsFromResponse() {
 	})
 
 	ctx := &NodeContext{
-		FlowID:        "test-flow",
+		ExecutionID:   "test-flow",
 		CurrentAction: "", // No action selected
 		UserInputs: map[string]string{
 			"username": "testuser",
@@ -989,8 +989,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithFailureAndRecovery() {
 
 	// First execution with failure
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		RuntimeData: map[string]string{
 			"failureReason": "Invalid credentials",
 			"otherData":     "should remain",
@@ -1040,8 +1040,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataOptions() {
 
 	// Execute with ForwardedData containing inputs with options
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
@@ -1083,8 +1083,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataNoMatch() {
 
 	// ForwardedData has inputs but different Identifier
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
@@ -1120,8 +1120,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithNoForwardedData() {
 
 	// No ForwardedData
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 	}
 	resp, err := node.Execute(ctx)
 
@@ -1151,8 +1151,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataMultipleInputs() {
 
 	// ForwardedData has options for only userType
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
@@ -1205,8 +1205,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataNonInputType() {
 
 	// ForwardedData has wrong type (string instead of []common.Input)
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: "not-an-input-slice",
 		},
@@ -1242,8 +1242,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataPreservesPromptFie
 
 	// ForwardedData has different Ref and Type (should NOT overwrite)
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
@@ -1285,8 +1285,8 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataEmptyOptions() {
 
 	// ForwardedData has matching input but with empty options
 	ctx := &NodeContext{
-		FlowID:     "test-flow",
-		UserInputs: map[string]string{},
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
@@ -1307,4 +1307,651 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataEmptyOptions() {
 	s.Equal("userType", promptInput.Identifier)
 	s.ElementsMatch([]string{"default"}, promptInput.Options,
 		"Options should not be overwritten with empty options from ForwardedData")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSetAndGetNextNode() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node-id")
+
+	s.Equal("next-node-id", promptNode.GetNextNode())
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSetAndGetMessage() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	message := "Welcome to the system"
+	promptNode.SetMessage(message)
+
+	s.Equal(message, promptNode.GetMessage())
+}
+
+func (s *PromptOnlyNodeTestSuite) TestIsDisplayOnly_False_WhenNoNextNode() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	s.False(promptNode.IsDisplayOnly(), "Should not be display-only without next node")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestIsDisplayOnly_False_WhenHasPrompts() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node")
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "username", Required: true},
+			},
+		},
+	})
+
+	s.False(promptNode.IsDisplayOnly(), "Should not be display-only when has prompts")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestIsDisplayOnly_True_WithNextNodeAndNoPrompts() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node")
+	promptNode.SetPrompts([]common.Prompt{})
+
+	s.True(promptNode.IsDisplayOnly(), "Should be display-only with next node and no prompts")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteDisplayOnlyPrompt_WithMessage() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"type": "TEXT",
+				"text": "Display only content",
+			},
+		},
+	}
+
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node")
+	promptNode.SetMessage("Please wait...")
+	promptNode.SetMeta(meta)
+	promptNode.SetPrompts([]common.Prompt{})
+
+	// Execute with verbose mode to get meta
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	s.Equal(common.NodeResponseTypeView, resp.Type)
+	s.NotNil(resp.AdditionalData)
+	s.Equal("Please wait...", resp.AdditionalData[common.DataPromptMessage])
+	s.Equal(meta, resp.Meta)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteDisplayOnlyPrompt_WithoutMessage() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node")
+	promptNode.SetPrompts([]common.Prompt{})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	s.Equal(common.NodeResponseTypeView, resp.Type)
+	// AdditionalData should not have message key if message is empty
+	if resp.AdditionalData != nil {
+		_, exists := resp.AdditionalData[common.DataPromptMessage]
+		s.False(exists, "Message should not be in AdditionalData when empty")
+	}
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteDisplayOnlyPrompt_IgnoresUserInputs() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node")
+	promptNode.SetPrompts([]common.Prompt{})
+
+	// Even though user inputs are provided, display-only prompt should ignore them
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{"username": "user123"},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	s.Equal(common.NodeResponseTypeView, resp.Type)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteDisplayOnlyPrompt_WithVerboseModeDisabled() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"type": "TEXT",
+			},
+		},
+	}
+
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetNextNode("next-node")
+	promptNode.SetMeta(meta)
+	promptNode.SetPrompts([]common.Prompt{})
+
+	// Execute with verbose mode disabled
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     false,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	s.Nil(resp.Meta, "Meta should not be included when verbose mode is disabled")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestGetActionTypeForRef_FoundWithType() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(*promptNode)
+
+	pn.SetPrompts([]common.Prompt{
+		{
+			Action: &common.Action{Ref: "action_1", Type: "login", NextNode: "auth"},
+		},
+		{
+			Action: &common.Action{Ref: "action_2", Type: "social", NextNode: "social_auth"},
+		},
+	})
+
+	s.Equal("login", pn.getActionTypeForRef("action_1"))
+	s.Equal("social", pn.getActionTypeForRef("action_2"))
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteActionTypeForwarding() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "username", Required: true},
+			},
+			Action: &common.Action{Ref: "login_action", Type: "password_login", NextNode: "auth_node"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "login_action",
+		UserInputs:    map[string]string{"username": "testuser"},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	// Verify action type is forwarded in ForwardedData
+	s.NotNil(resp.ForwardedData)
+	s.Equal("password_login", resp.ForwardedData[common.ForwardedDataKeyActionType])
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteActionTypeForwarding_MultipleActions() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Action: &common.Action{Ref: "google", Type: "social_google", NextNode: "google_auth"},
+		},
+		{
+			Action: &common.Action{Ref: "github", Type: "social_github", NextNode: "github_auth"},
+		},
+	})
+
+	// Test with google action
+	ctx1 := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "google",
+		UserInputs:    map[string]string{},
+	}
+	resp1, err1 := node.Execute(ctx1)
+
+	s.Nil(err1)
+	s.NotNil(resp1)
+	s.NotNil(resp1.ForwardedData)
+	s.Equal("social_google", resp1.ForwardedData[common.ForwardedDataKeyActionType])
+
+	// Test with github action
+	ctx2 := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "github",
+		UserInputs:    map[string]string{},
+	}
+	resp2, err2 := node.Execute(ctx2)
+
+	s.Nil(err2)
+	s.NotNil(resp2)
+	s.NotNil(resp2.ForwardedData)
+	s.Equal("social_github", resp2.ForwardedData[common.ForwardedDataKeyActionType])
+}
+
+func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_SkipsInputInRuntimeData() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: "username", Ref: "input_username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		RuntimeData:   map[string]string{"email": "user@example.com"},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 1)
+	s.Equal("username", resp.Inputs[0].Identifier, "email should be skipped because it is in RuntimeData")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_SkipsInputInForwardedDataString() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: "username", Ref: "input_username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: map[string]interface{}{"email": "user@example.com"},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 1)
+	s.Equal("username", resp.Inputs[0].Identifier, "email should be skipped because it is a string in ForwardedData")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_DoesNotSkipForwardedDataNonString() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "email", Ref: "input_email", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: map[string]interface{}{
+			"email": []common.Input{{Identifier: "email"}},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 1, "email should NOT be skipped because forwarded value is not a string")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_RuntimeDataDoesNotAffectNonMatchingInputs() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: "username", Ref: "input_username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		RuntimeData:   map[string]string{"someOtherKey": "value"},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 2, "both inputs should appear because RuntimeData has no matching keys")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_PartialInputSet() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "TEXT", "id": "heading"},
+			map[string]interface{}{
+				"type": "BLOCK",
+				"id":   "form_block",
+				"components": []interface{}{
+					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_given_name"},
+					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_family_name"},
+					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_email"},
+					map[string]interface{}{"type": "ACTION", "id": "action_submit"},
+				},
+			},
+		},
+	}
+
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "given_name", Ref: "input_given_name", Required: true},
+				{Identifier: "family_name", Ref: "input_family_name", Required: true},
+				{Identifier: "email", Ref: "input_email", Required: true},
+			},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{"email": "user@example.com"},
+		Verbose:     true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 2)
+	s.NotNil(resp.Meta)
+
+	respMeta, ok := resp.Meta.(map[string]interface{})
+	s.True(ok)
+	topComps, ok := respMeta["components"].([]interface{})
+	s.True(ok)
+	s.Len(topComps, 2)
+
+	// TEXT heading is always kept
+	headingComp, ok := topComps[0].(map[string]interface{})
+	s.True(ok)
+	s.Equal("heading", headingComp["id"])
+
+	// BLOCK contains only the two remaining inputs and the action
+	blockComp, ok := topComps[1].(map[string]interface{})
+	s.True(ok)
+	s.Equal("form_block", blockComp["id"])
+	nestedComps, ok := blockComp["components"].([]interface{})
+	s.True(ok)
+	s.Len(nestedComps, 3)
+
+	ids := make([]string, 0, len(nestedComps))
+	for _, c := range nestedComps {
+		if m, ok := c.(map[string]interface{}); ok {
+			ids = append(ids, m["id"].(string))
+		}
+	}
+	s.ElementsMatch([]string{"input_given_name", "input_family_name", "action_submit"}, ids)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_AllInputsMissing() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "TEXT", "id": "heading"},
+			map[string]interface{}{
+				"type": "BLOCK",
+				"id":   "form_block",
+				"components": []interface{}{
+					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_given_name"},
+					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_family_name"},
+					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_email"},
+					map[string]interface{}{"type": "ACTION", "id": "action_submit"},
+				},
+			},
+		},
+	}
+
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "given_name", Ref: "input_given_name", Required: true},
+				{Identifier: "family_name", Ref: "input_family_name", Required: true},
+				{Identifier: "email", Ref: "input_email", Required: true},
+			},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{},
+		Verbose:     true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Len(resp.Inputs, 3)
+	s.NotNil(resp.Meta)
+
+	respMeta, ok := resp.Meta.(map[string]interface{})
+	s.True(ok)
+	topComps, ok := respMeta["components"].([]interface{})
+	s.True(ok)
+	s.Len(topComps, 2)
+
+	blockComp, ok := topComps[1].(map[string]interface{})
+	s.True(ok)
+	nestedComps, ok := blockComp["components"].([]interface{})
+	s.True(ok)
+	s.Len(nestedComps, 4, "all components should be present when all inputs are missing")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_AllInputsSatisfied_ActionOnly() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "TEXT_INPUT", "id": "input_given_name"},
+			map[string]interface{}{"type": "ACTION", "id": "action_submit"},
+			map[string]interface{}{"type": "ACTION", "id": "action_cancel"},
+		},
+	}
+
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "given_name", Ref: "input_given_name", Required: true},
+			},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+		{
+			Action: &common.Action{Ref: "action_cancel", NextNode: "exit"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "",
+		UserInputs:    map[string]string{"given_name": "Alice"},
+		Verbose:       true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 0, "all inputs satisfied")
+	s.Len(resp.Actions, 2)
+	s.NotNil(resp.Meta)
+
+	respMeta, ok := resp.Meta.(map[string]interface{})
+	s.True(ok)
+	comps, ok := respMeta["components"].([]interface{})
+	s.True(ok)
+	s.Len(comps, 2, "input component should be dropped; only action components remain")
+
+	ids := make([]string, 0, len(comps))
+	for _, c := range comps {
+		if m, ok := c.(map[string]interface{}); ok {
+			ids = append(ids, m["id"].(string))
+		}
+	}
+	s.ElementsMatch([]string{"action_submit", "action_cancel"}, ids)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_DisabledWhenVerboseFalse() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "TEXT_INPUT", "id": "input_email"},
+			map[string]interface{}{"type": "TEXT_INPUT", "id": "input_username"},
+			map[string]interface{}{"type": "ACTION", "id": "action_submit"},
+		},
+	}
+
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: "username", Ref: "input_username", Required: true},
+			},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	// email is satisfied via RuntimeData; username is still missing — partial inputs
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{"email": "user@example.com"},
+		Verbose:     false,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Nil(resp.Meta, "Meta should be nil when verbose is false regardless of input state")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_MetaNotMapStructure() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta("plain string meta")
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "username", Ref: "input_username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+	}
+
+	s.NotPanics(func() {
+		resp, err := node.Execute(ctx)
+		s.Nil(err)
+		s.NotNil(resp)
+		s.Equal("plain string meta", resp.Meta, "non-map meta should be returned unchanged")
+	})
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteActionTypeForwarding_NoTypeField() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+			// No Type field
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{"username": "testuser"},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	// ForwardedData should not have actionType when action has no type
+	if resp.ForwardedData != nil {
+		actionType, exists := resp.ForwardedData[common.ForwardedDataKeyActionType]
+		if exists {
+			s.Empty(actionType, "Action type should be empty when not defined")
+		}
+	}
 }

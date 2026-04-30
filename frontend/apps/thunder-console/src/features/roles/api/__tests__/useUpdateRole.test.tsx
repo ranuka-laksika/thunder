@@ -28,8 +28,8 @@ vi.mock('@asgardeo/react', () => ({
   useAsgardeo: vi.fn(),
 }));
 
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useConfig: vi.fn(),
@@ -38,7 +38,7 @@ vi.mock('@thunder/shared-contexts', async (importOriginal) => {
 });
 
 const {useAsgardeo} = await import('@asgardeo/react');
-const {useConfig, useToast} = await import('@thunder/shared-contexts');
+const {useConfig, useToast} = await import('@thunder/contexts');
 
 describe('useUpdateRole', () => {
   let mockHttpRequest: ReturnType<typeof vi.fn>;
@@ -143,7 +143,7 @@ describe('useUpdateRole', () => {
         url: 'https://api.test.com/roles/role-1',
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        data: JSON.stringify(mockUpdateRequest),
+        data: mockUpdateRequest,
       }),
     );
   });
@@ -280,7 +280,7 @@ describe('useUpdateRole', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const callArgs = mockHttpRequest.mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(callArgs.data).toBe(JSON.stringify(mockUpdateRequest));
+    expect(callArgs.data).toEqual(mockUpdateRequest);
   });
 
   it('should clear error state on successful retry', async () => {

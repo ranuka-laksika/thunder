@@ -22,7 +22,7 @@ backend/internal/
 frontend/apps/
   thunder-gate/         # login/registration SPA  (@asgardeo/react — app-native mode)
   thunder-console/      # admin SPA               (@asgardeo/react — redirect mode)
-frontend/packages/      # @thunder/shared-contexts · design · hooks · i18n · utils · types · logger
+frontend/packages/      # @thunder/contexts · design · hooks · i18n · utils · types · logger
 samples/apps/           # react-sdk-sample · react-api-based-sample · react-vanilla-sample
 ```
 
@@ -50,11 +50,11 @@ Authentication/registration are JSON node graphs (`START → PROMPT → TASK →
 ### (Mode 1)
 
 ```text
-Client → GET /oauth2/authorize → 302 /gate?flowId=…
+Client → GET /oauth2/authorize → 302 /gate?executionId=…
 Gate SPA → POST /flow/execute (loop) → 302 redirect_uri?code=…
 Client → POST /oauth2/token → { access_token, id_token }
 ```
 
 ### Mode 2
 
-Client posts directly to `POST /flow/execute` with `applicationId` (first call) then `flowId` until `status: COMPLETE`.
+Client posts directly to `POST /flow/execute` with `applicationId` (first call) then `executionId` until `status: COMPLETE`.

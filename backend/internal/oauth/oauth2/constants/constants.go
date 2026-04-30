@@ -43,6 +43,7 @@ const (
 	RequestParamRefreshToken        string = "refresh_token"
 	RequestParamResponseType        string = "response_type"
 	RequestParamState               string = "state"
+	RequestParamIss                 string = "iss"
 	RequestParamResource            string = "resource"
 	RequestParamError               string = "error"
 	RequestParamErrorDescription    string = "error_description"
@@ -58,6 +59,7 @@ const (
 	RequestParamClaimsLocales       string = "claims_locales"
 	RequestParamNonce               string = "nonce"
 	RequestParamPrompt              string = "prompt"
+	RequestParamRequestURI          string = "request_uri"
 )
 
 // OIDC prompt parameter values.
@@ -86,7 +88,7 @@ const (
 	SessionDataKeyConsent string = "sessionDataKeyConsent"
 	ShowInsecureWarning   string = "showInsecureWarning"
 	AppID                 string = "applicationId"
-	FlowID                string = "flowId"
+	ExecutionID           string = "executionId"
 	Assertion             string = "assertion"
 )
 
@@ -107,6 +109,7 @@ const (
 	OAuth2JWKSEndpoint          string = "/oauth2/jwks"
 	OAuth2LogoutEndpoint        string = "/oauth2/logout"
 	OAuth2DCREndpoint           string = "/oauth2/dcr/register"
+	OAuth2PAREndpoint           string = "/oauth2/par"
 )
 
 // GrantType defines a type for OAuth2 grant types.
@@ -316,11 +319,6 @@ const (
 	ClaimClaimsLocales string = "claims_locales"
 )
 
-// JWT signing algorithms.
-const (
-	SigningAlgorithmRS256 string = "RS256"
-)
-
 // OIDC subject types.
 const (
 	SubjectTypePublic string = "public"
@@ -382,11 +380,6 @@ func GetSupportedTokenEndpointAuthMethods() []string {
 // GetSupportedSubjectTypes returns all supported OIDC subject types.
 func GetSupportedSubjectTypes() []string {
 	return []string{SubjectTypePublic}
-}
-
-// GetSupportedIDTokenSigningAlgorithms returns all supported ID token signing algorithms.
-func GetSupportedIDTokenSigningAlgorithms() []string {
-	return []string{SigningAlgorithmRS256}
 }
 
 // GetStandardClaims returns all standard JWT claims that are always included in tokens.

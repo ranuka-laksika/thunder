@@ -29,6 +29,7 @@ import (
 	oupkg "github.com/asgardeo/thunder/internal/ou"
 	serverconst "github.com/asgardeo/thunder/internal/system/constants"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	"github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/internal/system/log"
 	"github.com/asgardeo/thunder/internal/system/security"
 	"github.com/asgardeo/thunder/internal/system/sysauthz"
@@ -44,7 +45,7 @@ type UserSchemaServiceInterface interface {
 	GetUserSchemaList(ctx context.Context, limit, offset int,
 		includeDisplay bool) (*UserSchemaListResponse, *serviceerror.ServiceError)
 	CreateUserSchema(
-		ctx context.Context, request CreateUserSchemaRequest,
+		ctx context.Context, request CreateUserSchemaRequestWithID,
 	) (*UserSchema, *serviceerror.ServiceError)
 	GetUserSchema(ctx context.Context, schemaID string,
 		includeDisplay bool) (*UserSchema, *serviceerror.ServiceError)
@@ -62,7 +63,7 @@ type UserSchemaServiceInterface interface {
 		ctx context.Context,
 		userType string,
 		userAttributes json.RawMessage,
-		identifyUser func(map[string]interface{}) (*string, error),
+		exists func(map[string]interface{}) (bool, error),
 	) (bool, *serviceerror.ServiceError)
 	GetCredentialAttributes(
 		ctx context.Context, userType string,
@@ -194,7 +195,7 @@ func (us *userSchemaService) listAccessibleUserSchemas(
 
 // CreateUserSchema creates a new user schema.
 func (us *userSchemaService) CreateUserSchema(
-	ctx context.Context, request CreateUserSchemaRequest,
+	ctx context.Context, request CreateUserSchemaRequestWithID,
 ) (*UserSchema, *serviceerror.ServiceError) {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, userSchemaLoggerComponentName))
 
@@ -234,10 +235,13 @@ func (us *userSchemaService) CreateUserSchema(
 		return nil, logAndReturnServerError(logger, "Failed to check existing user schema", err)
 	}
 
-	id, err := utils.GenerateUUIDv7()
-	if err != nil {
-		logger.Error("Failed to generate UUID", log.Error(err))
-		return nil, &ErrorInternalServerError
+	id := request.ID
+	if id == "" {
+		id, err = utils.GenerateUUIDv7()
+		if err != nil {
+			logger.Error("Failed to generate UUID", log.Error(err))
+			return nil, &serviceerror.InternalServerError
+		}
 	}
 
 	userSchema := UserSchema{
@@ -538,7 +542,7 @@ func (us *userSchemaService) ValidateUserUniqueness(
 	ctx context.Context,
 	userType string,
 	userAttributes json.RawMessage,
-	identifyUser func(map[string]interface{}) (*string, error),
+	exists func(map[string]interface{}) (bool, error),
 ) (bool, *serviceerror.ServiceError) {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, userSchemaLoggerComponentName))
 
@@ -559,7 +563,7 @@ func (us *userSchemaService) ValidateUserUniqueness(
 		return false, logAndReturnServerError(logger, "Failed to unmarshal user attributes", err)
 	}
 
-	isValid, err := compiledSchema.ValidateUniqueness(userAttrs, identifyUser, logger)
+	isValid, err := compiledSchema.ValidateUniqueness(userAttrs, exists, logger)
 	if err != nil {
 		return false, logAndReturnServerError(logger, "Failed during uniqueness validation", err)
 	}
@@ -657,7 +661,7 @@ func (us *userSchemaService) checkUserSchemaAccess(
 	allowed, svcErr := us.authzService.IsActionAllowed(ctx, action,
 		&sysauthz.ActionContext{ResourceType: security.ResourceTypeUserSchema, OUID: ouID})
 	if svcErr != nil {
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 	if !allowed {
 		return &serviceerror.ErrorUnauthorized
@@ -675,7 +679,7 @@ func (us *userSchemaService) getAccessibleResources(
 	accessible, svcErr := us.authzService.GetAccessibleResources(
 		ctx, action, security.ResourceTypeUserSchema)
 	if svcErr != nil {
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 	return accessible, nil
 }
@@ -688,14 +692,14 @@ func (us *userSchemaService) ensureOrganizationUnitExists(
 ) *serviceerror.ServiceError {
 	if us.ouService == nil {
 		logger.Error("Organization unit service is not configured for user schema operations")
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 
 	exists, svcErr := us.ouService.IsOrganizationUnitExists(ctx, oUID)
 	if svcErr != nil {
 		logger.Error("Failed to verify organization unit existence",
 			log.String("oUID", oUID), log.Any("error", svcErr))
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 
 	if !exists {
@@ -790,7 +794,7 @@ func logAndReturnServerError(
 	err error,
 ) *serviceerror.ServiceError {
 	logger.Error(message, log.Error(err))
-	return &ErrorInternalServerError
+	return &serviceerror.InternalServerError
 }
 
 // validateUserSchemaDefinition validates the user schema definition without checking OU existence.
@@ -1027,7 +1031,10 @@ func invalidSchemaRequestError(detail string) *serviceerror.ServiceError {
 	err := ErrorInvalidUserSchemaRequest
 	errorDescription := err.ErrorDescription
 	if detail != "" {
-		errorDescription = fmt.Sprintf("%s: %s", err.ErrorDescription, detail)
+		errorDescription = core.I18nMessage{
+			Key:          "error.userschemaservice.invalid_user_schema_request_description",
+			DefaultValue: fmt.Sprintf("%s: %s", err.ErrorDescription.DefaultValue, detail),
+		}
 	}
 	return &serviceerror.ServiceError{
 		Code:             err.Code,
@@ -1076,19 +1083,21 @@ func extractAttributeNamesAsMap(schema json.RawMessage) (map[string]bool, *servi
 	return result, nil
 }
 
-// wrapConsentServiceError converts an I18nServiceError from the consent service into a ServiceError
+// wrapConsentServiceError converts an ServiceError from the consent service into a ServiceError
 // for the user schema service.
-func wrapConsentServiceError(err *serviceerror.I18nServiceError, logger *log.Logger) *serviceerror.ServiceError {
+func wrapConsentServiceError(err *serviceerror.ServiceError, logger *log.Logger) *serviceerror.ServiceError {
 	if err == nil {
 		return nil
 	}
 
 	if err.Type == serviceerror.ClientErrorType {
 		logger.Debug("Failed to sync consent elements for the schema changes", log.Any("error", err))
-		return serviceerror.CustomServiceError(ErrorConsentSyncFailed,
-			fmt.Sprintf(ErrorConsentSyncFailed.ErrorDescription+" : code - %s", err.Code))
+		return serviceerror.CustomServiceError(ErrorConsentSyncFailed, core.I18nMessage{
+			Key:          "error.userschemaservice.consent_sync_failed_description",
+			DefaultValue: fmt.Sprintf("%s : code - %s", ErrorConsentSyncFailed.ErrorDescription.DefaultValue, err.Code),
+		})
 	}
 
 	logger.Error("Failed to sync consent elements for the schema changes", log.Any("error", err))
-	return &ErrorInternalServerError
+	return &serviceerror.InternalServerError
 }

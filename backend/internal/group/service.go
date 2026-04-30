@@ -21,10 +21,12 @@ package group
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/asgardeo/thunder/internal/entity"
 	oupkg "github.com/asgardeo/thunder/internal/ou"
 	serverconst "github.com/asgardeo/thunder/internal/system/constants"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
@@ -33,7 +35,6 @@ import (
 	"github.com/asgardeo/thunder/internal/system/sysauthz"
 	"github.com/asgardeo/thunder/internal/system/transaction"
 	"github.com/asgardeo/thunder/internal/system/utils"
-	"github.com/asgardeo/thunder/internal/user"
 	"github.com/asgardeo/thunder/internal/userschema"
 )
 
@@ -49,7 +50,8 @@ type GroupServiceInterface interface {
 	CreateGroupByPath(ctx context.Context, handlePath string, request CreateGroupByPathRequest) (
 		*Group, *serviceerror.ServiceError)
 	GetGroup(ctx context.Context, groupID string, includeDisplay bool) (*Group, *serviceerror.ServiceError)
-	UpdateGroup(ctx context.Context, groupID string, request UpdateGroupRequest) (*Group, *serviceerror.ServiceError)
+	UpdateGroup(ctx context.Context, groupID string, request UpdateGroupRequest) (
+		*Group, *serviceerror.ServiceError)
 	DeleteGroup(ctx context.Context, groupID string) *serviceerror.ServiceError
 	GetGroupMembers(ctx context.Context, groupID string, limit, offset int, includeDisplay bool) (
 		*MemberListResponse, *serviceerror.ServiceError)
@@ -63,7 +65,7 @@ type GroupServiceInterface interface {
 type groupService struct {
 	groupStore        groupStoreInterface
 	ouService         oupkg.OrganizationUnitServiceInterface
-	userService       user.UserServiceInterface
+	entityService     entity.EntityServiceInterface
 	userSchemaService userschema.UserSchemaServiceInterface
 	transactioner     transaction.Transactioner
 	authzService      sysauthz.SystemAuthorizationServiceInterface
@@ -73,7 +75,7 @@ type groupService struct {
 func newGroupServiceWithStore(
 	store groupStoreInterface,
 	ouService oupkg.OrganizationUnitServiceInterface,
-	userService user.UserServiceInterface,
+	entityService entity.EntityServiceInterface,
 	userSchemaService userschema.UserSchemaServiceInterface,
 	authzService sysauthz.SystemAuthorizationServiceInterface,
 	transactioner transaction.Transactioner,
@@ -81,7 +83,7 @@ func newGroupServiceWithStore(
 	return &groupService{
 		groupStore:        store,
 		ouService:         ouService,
-		userService:       userService,
+		entityService:     entityService,
 		userSchemaService: userSchemaService,
 		authzService:      authzService,
 		transactioner:     transactioner,
@@ -114,13 +116,13 @@ func (gs *groupService) listAllGroups(ctx context.Context, limit, offset int, in
 	totalCount, err := gs.groupStore.GetGroupListCount(ctx)
 	if err != nil {
 		logger.Error("Failed to get group count", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	groups, err := gs.groupStore.GetGroupList(ctx, limit, offset)
 	if err != nil {
 		logger.Error("Failed to list groups", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	groupBasics := make([]GroupBasic, 0, len(groups))
@@ -163,7 +165,7 @@ func (gs *groupService) listGroupsByOUIDs(ctx context.Context, ouIDs []string, l
 	totalCount, err := gs.groupStore.GetGroupListCountByOUIDs(ctx, ouIDs)
 	if err != nil {
 		logger.Error("Failed to get group count by OU IDs", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	if totalCount == 0 {
@@ -179,7 +181,7 @@ func (gs *groupService) listGroupsByOUIDs(ctx context.Context, ouIDs []string, l
 	groups, err := gs.groupStore.GetGroupListByOUIDs(ctx, ouIDs, limit, offset)
 	if err != nil {
 		logger.Error("Failed to list groups by OU IDs", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	groupBasics := make([]GroupBasic, 0, len(groups))
@@ -234,13 +236,13 @@ func (gs *groupService) GetGroupsByPath(
 	totalCount, err := gs.groupStore.GetGroupsByOrganizationUnitCount(ctx, oUID)
 	if err != nil {
 		logger.Error("Failed to get group count by organization unit", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	groups, err := gs.groupStore.GetGroupsByOrganizationUnit(ctx, oUID, limit, offset)
 	if err != nil {
 		logger.Error("Failed to list groups by organization unit", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	groupBasics := make([]GroupBasic, 0, len(groups))
@@ -282,24 +284,24 @@ func (gs *groupService) CreateGroup(ctx context.Context, request CreateGroupRequ
 		return nil, err
 	}
 
-	var userIDs []string
+	if err := gs.validateEntityMembers(ctx, request.Members, security.ActionCreateGroup); err != nil {
+		return nil, err
+	}
+
 	var groupIDs []string
-	for _, member := range request.Members {
-		switch member.Type {
-		case MemberTypeUser:
-			userIDs = append(userIDs, member.ID)
-		case MemberTypeGroup:
-			groupIDs = append(groupIDs, member.ID)
+	for _, m := range request.Members {
+		if m.Type == MemberTypeGroup {
+			groupIDs = append(groupIDs, m.ID)
 		}
 	}
 
-	if err := gs.validateUserIDsWithAccess(ctx, userIDs); err != nil {
-		return nil, err
+	if len(groupIDs) > 0 {
+		if err := gs.ValidateGroupIDs(ctx, groupIDs); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := gs.ValidateGroupIDs(ctx, groupIDs); err != nil {
-		return nil, err
-	}
+	request.Members = normalizeMembers(request.Members)
 
 	var createdGroup *Group
 	var capturedSvcErr *serviceerror.ServiceError
@@ -343,8 +345,15 @@ func (gs *groupService) CreateGroup(ctx context.Context, request CreateGroupRequ
 
 	if err != nil {
 		logger.Error("Failed to create group", log.Error(err), log.String("name", request.Name))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
+
+	// Resolve member types (entity → user/app) for the API response.
+	resolvedMembers, svcErr := gs.resolveMembers(ctx, createdGroup.Members, false, logger)
+	if svcErr != nil {
+		return nil, svcErr
+	}
+	createdGroup.Members = resolvedMembers
 
 	logger.Debug("Successfully created group", log.String("id", createdGroup.ID), log.String("name", createdGroup.Name))
 	return createdGroup, nil
@@ -399,7 +408,7 @@ func (gs *groupService) GetGroup(
 			return nil, &ErrorGroupNotFound
 		}
 		logger.Error("Failed to retrieve group", log.String("id", groupID), log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	if err := gs.checkGroupAccess(ctx, security.ActionReadGroup, groupDAO.OUID, groupID); err != nil {
@@ -407,6 +416,12 @@ func (gs *groupService) GetGroup(
 	}
 
 	group := convertGroupDAOToGroup(groupDAO)
+
+	resolvedMembers, svcErr := gs.resolveMembers(ctx, group.Members, includeDisplay, logger)
+	if svcErr != nil {
+		return nil, svcErr
+	}
+	group.Members = resolvedMembers
 
 	if includeDisplay {
 		handleMap, svcErr := gs.ouService.GetOrganizationUnitHandlesByIDs(
@@ -519,7 +534,7 @@ func (gs *groupService) UpdateGroup(
 
 	if err != nil {
 		logger.Error("Failed to update group", log.Error(err), log.String("groupID", groupID))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	logger.Debug("Successfully updated group", log.String("id", groupID), log.String("name", request.Name))
@@ -570,7 +585,7 @@ func (gs *groupService) DeleteGroup(ctx context.Context, groupID string) *servic
 
 	if err != nil {
 		logger.Error("Failed to delete group", log.Error(err), log.String("groupID", groupID))
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 
 	logger.Debug("Successfully deleted group", log.String("id", groupID))
@@ -597,7 +612,7 @@ func (gs *groupService) GetGroupMembers(ctx context.Context, groupID string, lim
 			return nil, &ErrorGroupNotFound
 		}
 		logger.Error("Failed to retrieve group", log.String("id", groupID), log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	if err := gs.checkGroupAccess(
@@ -612,17 +627,19 @@ func (gs *groupService) GetGroupMembers(ctx context.Context, groupID string, lim
 	totalCount, err := gs.groupStore.GetGroupMemberCount(ctx, groupID)
 	if err != nil {
 		logger.Error("Failed to get group member count", log.String("groupID", groupID), log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	members, err := gs.groupStore.GetGroupMembers(ctx, groupID, limit, offset)
 	if err != nil {
 		logger.Error("Failed to get group members", log.String("groupID", groupID), log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
-	if includeDisplay {
-		gs.populateMemberDisplayNames(ctx, members, logger)
+	// Always resolve member types (entity → user/app) and optionally resolve display names.
+	members, svcErr := gs.resolveMembers(ctx, members, includeDisplay, logger)
+	if svcErr != nil {
+		return nil, svcErr
 	}
 
 	baseURL := fmt.Sprintf("/groups/%s/members", groupID)
@@ -639,45 +656,53 @@ func (gs *groupService) GetGroupMembers(ctx context.Context, groupID string, lim
 	return response, nil
 }
 
-// populateMemberDisplayNames resolves display names for group members.
-// For user members, it uses the schema-configured display attribute path.
-// For group members, it uses the group name.
-func (gs *groupService) populateMemberDisplayNames(ctx context.Context, members []Member, logger *log.Logger) {
+// resolveMembers resolves the public member type (user/app) from the internal 'entity' type
+// and optionally populates display names.
+func (gs *groupService) resolveMembers(
+	ctx context.Context, members []Member, includeDisplay bool, logger *log.Logger,
+) ([]Member, *serviceerror.ServiceError) {
 	if len(members) == 0 {
-		return
+		return members, nil
 	}
 
-	// Separate user and group member IDs.
-	var userIDs, groupIDs []string
+	// Separate entity and group member IDs.
+	var entityIDs, groupIDs []string
 	for _, m := range members {
 		switch m.Type {
-		case MemberTypeUser:
-			userIDs = append(userIDs, m.ID)
+		case memberTypeEntity:
+			entityIDs = append(entityIDs, m.ID)
 		case MemberTypeGroup:
 			groupIDs = append(groupIDs, m.ID)
 		}
 	}
 
-	// Batch-fetch users and resolve display attribute paths.
-	var usersMap map[string]*user.User
+	// Batch-fetch entities to resolve category and optionally display names.
+	var entityMap map[string]*entity.Entity
 	var displayAttrPaths map[string]string
-	if len(userIDs) > 0 {
-		var svcErr *serviceerror.ServiceError
-		usersMap, svcErr = gs.userService.GetUsersByIDs(ctx, userIDs)
-		if svcErr != nil {
-			logger.Warn("Failed to batch-fetch users for display resolution", log.Any("error", svcErr))
-		} else {
+	if len(entityIDs) > 0 {
+		entities, err := gs.entityService.GetEntitiesByIDs(ctx, entityIDs)
+		if err != nil {
+			logger.Error("Failed to batch-fetch entities for member resolution", log.Error(err))
+			return nil, &ErrorInternalServerError
+		}
+		entityMap = make(map[string]*entity.Entity, len(entities))
+		for i := range entities {
+			entityMap[entities[i].ID] = &entities[i]
+		}
+		if includeDisplay {
 			var userTypes []string
-			for _, u := range usersMap {
-				userTypes = append(userTypes, u.Type)
+			for _, e := range entities {
+				if e.Category == entity.EntityCategoryUser {
+					userTypes = append(userTypes, e.Type)
+				}
 			}
-			displayAttrPaths = user.ResolveDisplayAttributePaths(ctx, userTypes, gs.userSchemaService, logger)
+			displayAttrPaths = resolveDisplayAttributePaths(ctx, userTypes, gs.userSchemaService, logger)
 		}
 	}
 
 	// Batch-fetch groups for group member display names.
 	var groupsMap map[string]*Group
-	if len(groupIDs) > 0 {
+	if includeDisplay && len(groupIDs) > 0 {
 		var svcErr *serviceerror.ServiceError
 		groupsMap, svcErr = gs.GetGroupsByIDs(ctx, groupIDs)
 		if svcErr != nil {
@@ -685,124 +710,79 @@ func (gs *groupService) populateMemberDisplayNames(ctx context.Context, members 
 		}
 	}
 
-	// Set display on each member.
+	// Set public type and optionally display on each member.
+	// Orphaned entity members (deleted entity with stale assignment row) are dropped.
+	resolved := make([]Member, 0, len(members))
 	for i := range members {
 		switch members[i].Type {
-		case MemberTypeUser:
-			if usersMap != nil {
-				if u, ok := usersMap[members[i].ID]; ok {
-					members[i].Display = utils.ResolveDisplay(u.ID, u.Type, u.Attributes, displayAttrPaths)
-					continue
+		case memberTypeEntity:
+			e, ok := entityMap[members[i].ID]
+			if !ok {
+				logger.Warn("Skipping orphaned entity member", log.String("id", members[i].ID))
+				continue
+			}
+			// Set the public type from the entity category ("user" or "app").
+			members[i].Type = MemberType(e.Category)
+			if includeDisplay {
+				switch e.Category {
+				case entity.EntityCategoryUser:
+					members[i].Display = utils.ResolveDisplay(e.ID, e.Type, e.Attributes, displayAttrPaths)
+				case entity.EntityCategoryApp:
+					members[i].Display = resolveAppDisplay(*e)
 				}
 			}
-			members[i].Display = members[i].ID
 		case MemberTypeGroup:
-			if groupsMap != nil {
-				if g, ok := groupsMap[members[i].ID]; ok && g.Name != "" {
-					members[i].Display = g.Name
-					continue
+			if includeDisplay {
+				if groupsMap != nil {
+					if g, ok := groupsMap[members[i].ID]; ok && g.Name != "" {
+						members[i].Display = g.Name
+					} else {
+						members[i].Display = members[i].ID
+					}
+				} else {
+					members[i].Display = members[i].ID
 				}
 			}
-			members[i].Display = members[i].ID
 		}
+		resolved = append(resolved, members[i])
 	}
+	return resolved, nil
 }
 
 // AddGroupMembers adds members to a group.
 func (gs *groupService) AddGroupMembers(
 	ctx context.Context, groupID string, members []Member) (*Group, *serviceerror.ServiceError) {
-	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName))
-	logger.Debug("Adding members to group", log.String("id", groupID))
-
-	if groupID == "" {
-		return nil, &ErrorMissingGroupID
-	}
-
-	if len(members) == 0 {
-		return nil, &ErrorEmptyMembers
-	}
-
-	if svcErr := validateMemberTypes(members); svcErr != nil {
-		return nil, svcErr
-	}
-
-	var capturedSvcErr *serviceerror.ServiceError
-	var updatedGroupDAO GroupDAO
-
-	err := gs.transactioner.Transact(ctx, func(txCtx context.Context) error {
-		existingGroupDAO, err := gs.groupStore.GetGroup(txCtx, groupID)
-		if err != nil {
-			if errors.Is(err, ErrGroupNotFound) {
-				logger.Debug("Group not found", log.String("id", groupID))
-				capturedSvcErr = &ErrorGroupNotFound
-				return errors.New("rollback for group not found")
-			}
-			return err
-		}
-
-		if err := gs.checkGroupAccess(
-			txCtx,
-			security.ActionUpdateGroup,
-			existingGroupDAO.OUID,
-			groupID,
-		); err != nil {
-			capturedSvcErr = err
-			return errors.New("rollback for unauthorized access")
-		}
-
-		var userIDs []string
-		var groupIDs []string
-		for _, member := range members {
-			switch member.Type {
-			case MemberTypeUser:
-				userIDs = append(userIDs, member.ID)
-			case MemberTypeGroup:
-				groupIDs = append(groupIDs, member.ID)
-			}
-		}
-
-		if svcErr := gs.validateUserIDsWithAccess(txCtx, userIDs); svcErr != nil {
-			capturedSvcErr = svcErr
-			return errors.New("rollback for invalid user IDs")
-		}
-
-		if svcErr := gs.ValidateGroupIDs(txCtx, groupIDs); svcErr != nil {
-			capturedSvcErr = svcErr
-			return errors.New("rollback for invalid group IDs")
-		}
-
-		if err := gs.groupStore.AddGroupMembers(txCtx, groupID, members); err != nil {
-			return err
-		}
-
-		groupDAO, err := gs.groupStore.GetGroup(txCtx, groupID)
-		if err != nil {
-			return err
-		}
-		updatedGroupDAO = groupDAO
-
-		return nil
-	})
-
-	if capturedSvcErr != nil {
-		return nil, capturedSvcErr
-	}
-
-	if err != nil {
-		logger.Error("Failed to add members to group", log.String("id", groupID), log.Error(err))
-		return nil, &ErrorInternalServerError
-	}
-
-	updatedGroup := convertGroupDAOToGroup(updatedGroupDAO)
-	logger.Debug("Successfully added members to group", log.String("id", groupID))
-	return &updatedGroup, nil
+	log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName)).
+		Debug("Adding members to group", log.String("id", groupID))
+	return gs.modifyGroupMembers(ctx, groupID, members,
+		gs.groupStore.AddGroupMembers,
+		"Failed to add members to group",
+		"Successfully added members to group",
+	)
 }
 
 // RemoveGroupMembers removes members from a group.
 func (gs *groupService) RemoveGroupMembers(
 	ctx context.Context, groupID string, members []Member) (*Group, *serviceerror.ServiceError) {
+	log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName)).
+		Debug("Removing members from group", log.String("id", groupID))
+	return gs.modifyGroupMembers(ctx, groupID, members,
+		gs.groupStore.RemoveGroupMembers,
+		"Failed to remove members from group",
+		"Successfully removed members from group",
+	)
+}
+
+// modifyGroupMembers is the shared implementation for AddGroupMembers and RemoveGroupMembers.
+// It validates, normalizes, and applies storeOp inside a transaction, then resolves member types.
+func (gs *groupService) modifyGroupMembers(
+	ctx context.Context,
+	groupID string,
+	members []Member,
+	storeOp func(context.Context, string, []Member) error,
+	errMsg, successMsg string,
+) (*Group, *serviceerror.ServiceError) {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName))
-	logger.Debug("Removing members from group", log.String("id", groupID))
 
 	if groupID == "" {
 		return nil, &ErrorMissingGroupID
@@ -816,10 +796,42 @@ func (gs *groupService) RemoveGroupMembers(
 		return nil, svcErr
 	}
 
+	existingGroup, err := gs.groupStore.GetGroup(ctx, groupID)
+	if err != nil {
+		if errors.Is(err, ErrGroupNotFound) {
+			logger.Debug("Group not found", log.String("id", groupID))
+			return nil, &ErrorGroupNotFound
+		}
+		logger.Error("Failed to fetch group", log.String("id", groupID), log.Error(err))
+		return nil, &ErrorInternalServerError
+	}
+
+	if svcErr := gs.checkGroupAccess(ctx, security.ActionUpdateGroup, existingGroup.OUID, groupID); svcErr != nil {
+		return nil, svcErr
+	}
+
+	if svcErr := gs.validateEntityMembers(ctx, members, security.ActionUpdateGroup); svcErr != nil {
+		return nil, svcErr
+	}
+
+	var groupIDs []string
+	for _, m := range members {
+		if m.Type == MemberTypeGroup {
+			groupIDs = append(groupIDs, m.ID)
+		}
+	}
+	if len(groupIDs) > 0 {
+		if svcErr := gs.ValidateGroupIDs(ctx, groupIDs); svcErr != nil {
+			return nil, svcErr
+		}
+	}
+
+	members = normalizeMembers(members)
+
 	var capturedSvcErr *serviceerror.ServiceError
 	var updatedGroupDAO GroupDAO
 
-	err := gs.transactioner.Transact(ctx, func(txCtx context.Context) error {
+	err = gs.transactioner.Transact(ctx, func(txCtx context.Context) error {
 		existingGroupDAO, err := gs.groupStore.GetGroup(txCtx, groupID)
 		if err != nil {
 			if errors.Is(err, ErrGroupNotFound) {
@@ -840,7 +852,7 @@ func (gs *groupService) RemoveGroupMembers(
 			return errors.New("rollback for unauthorized access")
 		}
 
-		if err := gs.groupStore.RemoveGroupMembers(txCtx, groupID, members); err != nil {
+		if err := storeOp(txCtx, groupID, members); err != nil {
 			return err
 		}
 
@@ -858,12 +870,17 @@ func (gs *groupService) RemoveGroupMembers(
 	}
 
 	if err != nil {
-		logger.Error("Failed to remove members from group", log.String("id", groupID), log.Error(err))
+		logger.Error(errMsg, log.String("id", groupID), log.Error(err))
 		return nil, &ErrorInternalServerError
 	}
 
 	updatedGroup := convertGroupDAOToGroup(updatedGroupDAO)
-	logger.Debug("Successfully removed members from group", log.String("id", groupID))
+	resolvedMembers, svcErr := gs.resolveMembers(ctx, updatedGroup.Members, false, logger)
+	if svcErr != nil {
+		return nil, svcErr
+	}
+	updatedGroup.Members = resolvedMembers
+	logger.Debug(successMsg, log.String("id", groupID))
 	return &updatedGroup, nil
 }
 
@@ -877,16 +894,7 @@ func (gs *groupService) validateCreateGroupRequest(request CreateGroupRequest) *
 		return &ErrorInvalidRequestFormat
 	}
 
-	for _, member := range request.Members {
-		if member.Type != MemberTypeUser && member.Type != MemberTypeGroup {
-			return &ErrorInvalidRequestFormat
-		}
-		if member.ID == "" {
-			return &ErrorInvalidRequestFormat
-		}
-	}
-
-	return nil
+	return validateMemberTypes(request.Members)
 }
 
 // validateUpdateGroupRequest validates the update group request.
@@ -902,17 +910,108 @@ func (gs *groupService) validateUpdateGroupRequest(request UpdateGroupRequest) *
 	return nil
 }
 
-// validateMemberTypes validates that all members have a valid type.
+// validateMemberTypes validates that all members have a valid public type ('user', 'app', 'group')
+// and a non-empty ID.
 func validateMemberTypes(members []Member) *serviceerror.ServiceError {
 	for _, member := range members {
-		if member.Type != MemberTypeUser && member.Type != MemberTypeGroup {
-			return &ErrorInvalidRequestFormat
+		if !member.Type.IsEntityType() && member.Type != MemberTypeGroup {
+			return &ErrorInvalidMemberType
 		}
 		if member.ID == "" {
 			return &ErrorInvalidRequestFormat
 		}
 	}
 	return nil
+}
+
+// validateEntityMembers validates user/app members before normalization.
+// It checks existence, verifies the claimed type matches the actual entity category,
+// and applies OU-scope access checking for user-category entities using the given action.
+func (gs *groupService) validateEntityMembers(
+	ctx context.Context, members []Member, action security.Action,
+) *serviceerror.ServiceError {
+	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName))
+
+	typeByID := make(map[string]MemberType)
+	for _, m := range members {
+		if m.Type.IsEntityType() {
+			if existing, ok := typeByID[m.ID]; ok && existing != m.Type {
+				return &ErrorInvalidMemberID
+			}
+			typeByID[m.ID] = m.Type
+		}
+	}
+	if len(typeByID) == 0 {
+		return nil
+	}
+
+	entityIDs := make([]string, 0, len(typeByID))
+	for id := range typeByID {
+		entityIDs = append(entityIDs, id)
+	}
+
+	entities, err := gs.entityService.GetEntitiesByIDs(ctx, entityIDs)
+	if err != nil {
+		logger.Error("Failed to fetch entities for member validation", log.Error(err))
+		return &ErrorInternalServerError
+	}
+
+	if len(entities) != len(entityIDs) {
+		return &ErrorInvalidMemberID
+	}
+
+	var userIDs []string
+	for _, e := range entities {
+		claimed := typeByID[e.ID]
+		actual := MemberType(e.Category)
+		if claimed != actual {
+			logger.Debug("Member type mismatch", log.String("id", e.ID),
+				log.String("claimed", string(claimed)), log.String("actual", string(actual)))
+			return &ErrorInvalidMemberID
+		}
+		if e.Category == entity.EntityCategoryUser {
+			userIDs = append(userIDs, e.ID)
+		}
+	}
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	accessibleOUs, svcErr := gs.getAccessibleOUs(ctx, action)
+	if svcErr != nil {
+		return svcErr
+	}
+
+	if accessibleOUs.AllAllowed {
+		return nil
+	}
+
+	outOfScopeIDs, err := gs.entityService.ValidateEntityIDsInOUs(ctx, userIDs, accessibleOUs.IDs)
+	if err != nil {
+		logger.Error("Failed to validate user IDs in OUs", log.Error(err))
+		return &ErrorInternalServerError
+	}
+
+	if len(outOfScopeIDs) > 0 {
+		logger.Debug("User IDs outside accessible OUs", log.MaskedStrings("outOfScopeIDs", outOfScopeIDs))
+		return &serviceerror.ErrorUnauthorized
+	}
+
+	return nil
+}
+
+// normalizeMembers converts public 'user'/'app' member types to the internal 'entity' type.
+func normalizeMembers(members []Member) []Member {
+	normalized := make([]Member, len(members))
+	for i, m := range members {
+		t := m.Type
+		if t.IsEntityType() {
+			t = memberTypeEntity
+		}
+		normalized[i] = Member{ID: m.ID, Type: t}
+	}
+	return normalized
 }
 
 // isOrganizationUnitChanged checks if the organization unit of the group has changed during an update.
@@ -927,7 +1026,7 @@ func (gs *groupService) validateOU(ctx context.Context, ouID string) *serviceerr
 	isExists, err := gs.ouService.IsOrganizationUnitExists(ctx, ouID)
 	if err != nil {
 		logger.Error("Failed to check organization unit existence", log.Any("error: ", err))
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 
 	if !isExists {
@@ -937,64 +1036,45 @@ func (gs *groupService) validateOU(ctx context.Context, ouID string) *serviceerr
 	return nil
 }
 
-// validateUserIDs validates that all provided user IDs exist.
-func (gs *groupService) validateUserIDs(ctx context.Context, userIDs []string) *serviceerror.ServiceError {
-	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName))
+// resolveDisplayAttributePaths collects unique user types and resolves their display
+// attribute paths from the user schema service.
+func resolveDisplayAttributePaths(
+	ctx context.Context, userTypes []string, schemaService userschema.UserSchemaServiceInterface,
+	logger *log.Logger,
+) map[string]string {
+	if schemaService == nil || len(userTypes) == 0 {
+		return nil
+	}
 
-	invalidUserIDs, svcErr := gs.userService.ValidateUserIDs(ctx, userIDs)
+	uniqueTypes := utils.UniqueNonEmptyStrings(userTypes)
+	if len(uniqueTypes) == 0 {
+		return nil
+	}
+
+	displayPaths, svcErr := schemaService.GetDisplayAttributesByNames(ctx, uniqueTypes)
 	if svcErr != nil {
-		logger.Error("Failed to validate user IDs", log.String("error", svcErr.Error), log.String("code", svcErr.Code))
-		return &ErrorInternalServerError
+		if logger != nil {
+			logger.Warn("Failed to resolve display attribute paths, skipping display resolution",
+				log.Any("error", svcErr))
+		}
+		return nil
 	}
 
-	if len(invalidUserIDs) > 0 {
-		logger.Debug("Invalid user IDs found", log.Any("invalidUserIDs", invalidUserIDs))
-		return &ErrorInvalidUserMemberID
-	}
-
-	return nil
+	return displayPaths
 }
 
-// validateUserIDsWithAccess validates user IDs in two steps:
-//  1. Existence check — returns ErrorInvalidUserMemberID for any unknown user ID.
-//  2. OU-scope check — returns ErrorUnauthorized for any user ID outside the caller's accessible OUs
-//     (OUs where the caller holds group-update permission).
-//
-// When the caller is a full admin (AllAllowed), only step 1 is performed.
-func (gs *groupService) validateUserIDsWithAccess(
-	ctx context.Context, userIDs []string,
-) *serviceerror.ServiceError {
-	if len(userIDs) == 0 {
-		return nil
+// resolveAppDisplay extracts a display name for an app entity from its system attributes.
+// Falls back to the entity ID if no name is found.
+func resolveAppDisplay(e entity.Entity) string {
+	if len(e.SystemAttributes) > 0 {
+		var sysAttrs map[string]interface{}
+		if err := json.Unmarshal(e.SystemAttributes, &sysAttrs); err == nil {
+			if name, ok := sysAttrs["name"].(string); ok && name != "" {
+				return name
+			}
+		}
 	}
-	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, loggerComponentName))
-
-	if err := gs.validateUserIDs(ctx, userIDs); err != nil {
-		return err
-	}
-
-	accessibleOUs, svcErr := gs.getAccessibleOUs(ctx, security.ActionUpdateGroup)
-	if svcErr != nil {
-		return svcErr
-	}
-
-	if accessibleOUs.AllAllowed {
-		// Full admin — no scope restriction.
-		return nil
-	}
-
-	outOfScopeIDs, svcErr := gs.userService.ValidateUserIDsInOUs(ctx, userIDs, accessibleOUs.IDs)
-	if svcErr != nil {
-		logger.Error("Failed to validate user IDs in OUs", log.String("error", svcErr.Error))
-		return &ErrorInternalServerError
-	}
-
-	if len(outOfScopeIDs) > 0 {
-		logger.Debug("User IDs outside accessible OUs", log.Any("outOfScopeIDs", outOfScopeIDs))
-		return &serviceerror.ErrorUnauthorized
-	}
-
-	return nil
+	return e.ID
 }
 
 // ValidateGroupIDs validates that all provided group IDs exist.
@@ -1004,7 +1084,7 @@ func (gs *groupService) ValidateGroupIDs(ctx context.Context, groupIDs []string)
 	invalidGroupIDs, err := gs.groupStore.ValidateGroupIDs(ctx, groupIDs)
 	if err != nil {
 		logger.Error("Failed to validate group IDs", log.Error(err))
-		return &ErrorInternalServerError
+		return &serviceerror.InternalServerError
 	}
 
 	if len(invalidGroupIDs) > 0 {
@@ -1038,7 +1118,7 @@ func (gs *groupService) GetGroupsByIDs(
 	groupDAOs, err := gs.groupStore.GetGroupsByIDs(ctx, uniqueIDs)
 	if err != nil {
 		logger.Error("Failed to get groups by IDs", log.Error(err))
-		return nil, &ErrorInternalServerError
+		return nil, &serviceerror.InternalServerError
 	}
 
 	result := make(map[string]*Group, len(groupDAOs))
@@ -1124,8 +1204,8 @@ func (gs *groupService) checkGroupAccess(
 
 	hasAccess, err := gs.authzService.IsActionAllowed(ctx, action, &actionCtx)
 	if err != nil {
-		logger.Error("Failed to check authorization", log.String("err", err.Error))
-		return &ErrorInternalServerError
+		logger.Error("Failed to check authorization", log.String("err", err.Error.DefaultValue))
+		return &serviceerror.InternalServerError
 	}
 	if !hasAccess {
 		return &serviceerror.ErrorUnauthorized

@@ -29,6 +29,7 @@ import (
 	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/database/provider"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	"github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/tests/mocks/consentmock"
 	"github.com/asgardeo/thunder/tests/mocks/oumock"
 
@@ -78,8 +79,8 @@ func (suite *InitTestSuite) TestInitialize() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -101,8 +102,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_ListEndpoint() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -128,8 +129,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_CreateEndpoint() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -162,8 +163,8 @@ func (suite *InitTestSuite) TestInitialize_DBTransactionerError() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "invalid-db-type",
-				Path: ":memory:",
+				Type:   "invalid-db-type",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -186,8 +187,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_GetByIDEndpoint() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -213,8 +214,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_UpdateEndpoint() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -240,8 +241,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_DeleteEndpoint() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -267,8 +268,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_CORSPreflight() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -294,8 +295,8 @@ func (suite *InitTestSuite) TestRegisterRoutes_CORSPreflightByID() {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -495,8 +496,8 @@ func TestInitialize_Standalone(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -527,8 +528,8 @@ func TestInitializeStore_MutableMode(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -560,8 +561,8 @@ func TestInitializeStore_DeclarativeMode(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -591,8 +592,8 @@ func TestInitializeStore_CompositeMode(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -624,8 +625,8 @@ func TestInitializeStore_DefaultFallbackToMutable(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -657,8 +658,8 @@ func TestInitializeStore_GlobalDeclarativeEnabled(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -688,8 +689,8 @@ func TestInitialize_MutableMode(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 	}
@@ -727,8 +728,8 @@ func TestInitialize_StoreModes(t *testing.T) {
 				UserSchema:           config.UserSchemaConfig{Store: m.store},
 				Database: config.DatabaseConfig{
 					Config: config.DataSource{
-						Type: "sqlite",
-						Path: ":memory:",
+						Type:   "sqlite",
+						SQLite: config.SQLiteDataSource{Path: ":memory:"},
 					},
 				},
 			}
@@ -899,7 +900,7 @@ func TestValidateUserSchemaWithOUCheck(t *testing.T) {
 			} else {
 				assert.NotNil(t, err, "Expected validation to fail")
 				if err != nil {
-					assert.Contains(t, err.ErrorDescription, tc.errorContains,
+					assert.Contains(t, err.ErrorDescription.DefaultValue, tc.errorContains,
 						"Error message should contain expected text")
 					assert.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
 				}
@@ -937,10 +938,16 @@ func TestOUServiceInteractionDuringValidation(t *testing.T) {
 			ouID:     "550e8400-e29b-41d4-a716-446655440002",
 			ouExists: false,
 			ouServiceError: &serviceerror.ServiceError{
-				Code:             "OUS-5000",
-				Type:             serviceerror.ServerErrorType,
-				Error:            "Internal server error",
-				ErrorDescription: "Failed to query organization unit",
+				Code: "OUS-5000",
+				Type: serviceerror.ServerErrorType,
+				Error: core.I18nMessage{
+					Key:          "error.organizationunit.internal_server_error",
+					DefaultValue: "Internal server error",
+				},
+				ErrorDescription: core.I18nMessage{
+					Key:          "error.organizationunit.failed_to_query",
+					DefaultValue: "Failed to query organization unit",
+				},
 			},
 			expectedResult: "service_error",
 		},
@@ -960,10 +967,16 @@ func TestOUServiceInteractionDuringValidation(t *testing.T) {
 			} else {
 				mockOUService.On("GetOrganizationUnit", mock.Anything, tc.ouID).
 					Return(oupkg.OrganizationUnit{}, &serviceerror.ServiceError{
-						Code:             "OUS-1002",
-						Type:             serviceerror.ClientErrorType,
-						Error:            "Organization unit not found",
-						ErrorDescription: "The organization unit does not exist",
+						Code: "OUS-1002",
+						Type: serviceerror.ClientErrorType,
+						Error: core.I18nMessage{
+							Key:          "error.organizationunit.not_found",
+							DefaultValue: "Organization unit not found",
+						},
+						ErrorDescription: core.I18nMessage{
+							Key:          "error.organizationunit.not_found_description",
+							DefaultValue: "The organization unit does not exist",
+						},
 					}).Once()
 			}
 
@@ -1068,7 +1081,7 @@ this is not valid yaml:
 				} else {
 					assert.NotNil(t, validationErr, "Expected validation to fail")
 					if validationErr != nil && tc.errorContains != "" {
-						assert.Contains(t, validationErr.ErrorDescription, tc.errorContains)
+						assert.Contains(t, validationErr.ErrorDescription.DefaultValue, tc.errorContains)
 					}
 				}
 			} else {
@@ -1103,8 +1116,8 @@ func TestInitialize_WithDeclarativeResourcesEnabled_InvalidYAML(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 		Crypto: config.CryptoConfig{
@@ -1163,8 +1176,8 @@ schema: |
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 		Crypto: config.CryptoConfig{
@@ -1222,8 +1235,8 @@ schema: |
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 		Crypto: config.CryptoConfig{
@@ -1244,10 +1257,16 @@ schema: |
 	// Mock OU service to return an error
 	mockOUService.On("GetOrganizationUnit", mock.Anything, "550e8400-e29b-41d4-a716-446655440000").
 		Return(oupkg.OrganizationUnit{}, &serviceerror.ServiceError{
-			Code:             "OUS-1002",
-			Type:             serviceerror.ClientErrorType,
-			Error:            "Organization unit not found",
-			ErrorDescription: "The organization unit does not exist",
+			Code: "OUS-1002",
+			Type: serviceerror.ClientErrorType,
+			Error: core.I18nMessage{
+				Key:          "error.organizationunit.not_found",
+				DefaultValue: "Organization unit not found",
+			},
+			ErrorDescription: core.I18nMessage{
+				Key:          "error.organizationunit.not_found_description",
+				DefaultValue: "The organization unit does not exist",
+			},
 		}).Once()
 	mockConsentService := mockConsentServiceWithDisabled(t)
 
@@ -1291,8 +1310,8 @@ schema: |
 		},
 		Database: config.DatabaseConfig{
 			Config: config.DataSource{
-				Type: "sqlite",
-				Path: ":memory:",
+				Type:   "sqlite",
+				SQLite: config.SQLiteDataSource{Path: ":memory:"},
 			},
 		},
 		Crypto: config.CryptoConfig{

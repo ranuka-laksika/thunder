@@ -7,6 +7,7 @@ name: 👷🛠️ PR Builder
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
   merge_group:
   workflow_dispatch:
 
@@ -53,7 +54,8 @@ jobs:
           while IFS= read -r id; do
             IGNORE_ARGS+=(--ignore "$id")
           done < <(jq -r '.frontend[].id' "$GITHUB_WORKSPACE/.audit-ignore.json")
-          pnpm audit --audit-level=high "${IGNORE_ARGS[@]}"
+          # Remove `--ignore-registry-errors` once pnpm 11 is generally available. Tracker: https://github.com/pnpm/pnpm/issues/11265
+          pnpm audit --ignore-registry-errors --audit-level=high "${IGNORE_ARGS[@]}"
 
       - name: 🔍 Run npm audit (E2E Tests)
         working-directory: tests/e2e
@@ -225,7 +227,7 @@ jobs:
   build:
     name: 🛠️ Build Product
     needs: dependency-guard
-    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && (github.event.label.name == 'trigger-pr-builder' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
@@ -316,7 +318,7 @@ jobs:
   test-frontend:
     name: 🧪 Frontend Tests (shard ${{ matrix.shard }}/4)
     needs: dependency-guard
-    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && (github.event.label.name == 'trigger-pr-builder' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -435,7 +437,7 @@ jobs:
   build_samples:
     name: 🛠️ Build Sample Apps
     needs: dependency-guard
-    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && (github.event.label.name == 'trigger-pr-builder' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
@@ -474,7 +476,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        database: [sqlite, postgres]
+        database: [sqlite, postgres, redis]
       fail-fast: false
     services:
       postgres:
@@ -487,6 +489,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -600,7 +611,7 @@ jobs:
         run: |
           cd tests/e2e/thunder-server
           ./setup.sh
-          THUNDER_SKIP_SECURITY=true ./start.sh &
+          SKIP_SECURITY=true ./start.sh &
           THUNDER_PID=$!
           echo "THUNDER_PID=$THUNDER_PID" >> $GITHUB_ENV
           # Wait for server to be ready
@@ -799,6 +810,55 @@ jobs:
       - name: ⏭️ No PowerShell changes
         if: steps.filter.outputs.powershell != 'true'
         run: echo "No PowerShell changes - skipping validation"
+
+  detect-docs-changes:
+    name: 🔍 Detect Documentation Changes
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: filter
+        with:
+          base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+          ref: ${{ github.event_name == 'merge_group' && github.sha || github.event.pull_request.head.sha }}
+          filters: |
+            docs:
+              - 'docs/**'
+              - 'frontend/package.json'
+              - 'frontend/pnpm-lock.yaml'
+              - 'frontend/pnpm-workspace.yaml'
+      - name: ✅ Documentation changes detected
+        if: steps.filter.outputs.docs == 'true'
+        run: echo "Documentation files changed - docs build will run"
+      - name: ⏭️ No documentation changes
+        if: steps.filter.outputs.docs != 'true'
+        run: echo "No documentation changes - skipping docs build"
+
+  build-docs:
+    name: 📚 Build Documentation
+    needs: [dependency-guard, detect-docs-changes]
+    if: ${{ always() && (needs.dependency-guard.result == 'success' || needs.dependency-guard.result == 'skipped') && needs.detect-docs-changes.outputs.should-run == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: ⚙️ Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 'lts/*'
+
+      - name: 📦 Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 'latest'
+          run_install: false
+
+      - name: 📚 Build docs
+        run: make build_docs
 
   validate-windows:
     name: 🪟 Validate Windows PowerShell

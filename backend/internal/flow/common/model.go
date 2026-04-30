@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	authncm "github.com/asgardeo/thunder/internal/authn/common"
+	authnprovidermgr "github.com/asgardeo/thunder/internal/authnprovider/manager"
 )
 
 // Input represents the inputs required for a node
@@ -41,6 +42,7 @@ func (i Input) IsSensitive() bool {
 // Action represents an action to be executed in a flow step
 type Action struct {
 	Ref      string `json:"ref,omitempty"`
+	Type     string `json:"type,omitempty"`
 	NextNode string `json:"nextNode,omitempty"`
 }
 
@@ -65,6 +67,7 @@ type NodeResponse struct {
 	ForwardedData     map[string]interface{}    `json:"forwardedData,omitempty"`
 	AuthenticatedUser authncm.AuthenticatedUser `json:"authenticatedUser,omitempty"`
 	Assertion         string                    `json:"assertion,omitempty"`
+	AuthUser          authnprovidermgr.AuthUser `json:"-"`
 }
 
 // ExecutorResponse represents the response from an executor
@@ -78,6 +81,7 @@ type ExecutorResponse struct {
 	AuthenticatedUser authncm.AuthenticatedUser `json:"authenticatedUser,omitempty"`
 	Assertion         string                    `json:"assertion,omitempty"`
 	FailureReason     string                    `json:"failureReason,omitempty"`
+	AuthUser          authnprovidermgr.AuthUser `json:"-"`
 }
 
 // NodeExecutionRecord represents a record of a node execution in the flow.

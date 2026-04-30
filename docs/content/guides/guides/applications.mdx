@@ -152,7 +152,7 @@ To rotate the client secret, open the application's **OAuth** tab and click **Re
 Redirect URIs are the URLs Thunder sends the authorization code (or token) to after a successful sign-in. You must register every URI your application uses.
 
 - Register all environments separately (for example, `http://localhost:3000/callback` for development and `https://yourapp.example.com/callback` for production).
-- Wildcard URIs are not supported. Register each URI exactly.
+- Wildcard patterns (`*`, `**`) in the path are supported when `oauth.allow_wildcard_redirect_uri` is enabled. Otherwise, each URI must match exactly. See [Use Wildcard Redirect URIs](/docs/next/guides/guides/applications/application-settings#use-wildcard-redirect-uris).
 - For mobile apps, register deep link URIs (for example, `com.example.app://auth/callback`) or universal link URIs.
 
 ### Grant Types
@@ -235,7 +235,6 @@ For applications that sign JWT assertions or use mutual TLS, you can attach a ce
 
 | Certificate Type | Description |
 |-----------------|-------------|
-| `NONE` | No certificate configured. |
 | `JWKS` | Provide the JSON Web Key Set (JWKS) inline. |
 | `JWKS_URI` | Provide the URL of the application's JWKS endpoint (for example, `https://yourapp.example.com/.well-known/jwks`). Thunder fetches the public keys from this URL to verify signed requests. |
 
@@ -258,5 +257,5 @@ Deleting an application is permanent. Any client using the application's Client 
 
 ## Next Steps
 
-- [Flows](/guides/guides/flows) — Build and assign custom authentication and registration flows
-- [React Quickstart](/guides/quick-start/connect-your-application/react) — Integrate Thunder with a React single-page application
+- [Flows](/docs/next/guides/guides/flows/what-is-flows) — Build and assign custom authentication and registration flows
+- [React Quickstart](/docs/next/guides/quick-start/connect-your-application/react) — Integrate Thunder with a React single-page application

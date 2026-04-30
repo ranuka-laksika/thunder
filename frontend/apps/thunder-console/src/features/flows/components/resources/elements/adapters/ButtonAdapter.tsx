@@ -16,23 +16,16 @@
  * under the License.
  */
 
-import {useTemplateLiteralResolver} from '@thunder/shared-hooks';
+import {useTemplateLiteralResolver} from '@thunder/hooks';
 import {Button, type ButtonProps, type SxProps, type Theme} from '@wso2/oxygen-ui';
 import {Position} from '@xyflow/react';
 import {useMemo, type ReactElement, type ReactNode} from 'react';
-import {Trans, useTranslation} from 'react-i18next';
+import {useTranslation} from 'react-i18next';
 import NodeHandle from './NodeHandle';
 import TemplatePlaceholder, {containsTemplateLiteral} from './TemplatePlaceholder';
 import VisualFlowConstants from '@/features/flows/constants/VisualFlowConstants';
-import type {RequiredFieldInterface} from '@/features/flows/hooks/useRequiredFields';
-import useRequiredFields from '@/features/flows/hooks/useRequiredFields';
 import {ButtonVariants, type Element as FlowElement} from '@/features/flows/models/elements';
 import resolveStaticResourcePath from '@/features/flows/utils/resolveStaticResourcePath';
-
-const BUTTON_VALIDATION_FIELD_NAMES = {
-  label: 'label',
-  variant: 'variant',
-} as const;
 
 /**
  * Configuration interface for Button element.
@@ -79,31 +72,6 @@ function ButtonAdapter({resource, elementIndex = undefined}: ButtonAdapterPropsI
   const {t} = useTranslation();
   const {resolve} = useTemplateLiteralResolver();
 
-  const generalMessage: ReactElement = useMemo(
-    () => (
-      <Trans i18nKey="flows:core.validation.fields.button.general" values={{id: resource.id}}>
-        Required fields are not properly configured for the button with ID <code>{resource.id}</code>.
-      </Trans>
-    ),
-    [resource?.id],
-  );
-
-  const validationFields: RequiredFieldInterface[] = useMemo(
-    () => [
-      {
-        errorMessage: t('flows:core.validation.fields.button.label'),
-        name: BUTTON_VALIDATION_FIELD_NAMES.label,
-      },
-      {
-        errorMessage: t('flows:core.validation.fields.button.variant'),
-        name: BUTTON_VALIDATION_FIELD_NAMES.variant,
-      },
-    ],
-    [t],
-  );
-
-  useRequiredFields(resource, generalMessage, validationFields);
-
   const buttonConfig = resource.config as ButtonConfig | undefined;
 
   const {config, image} = useMemo(() => {
@@ -143,10 +111,10 @@ function ButtonAdapter({resource, elementIndex = undefined}: ButtonAdapterPropsI
   const startIcon = useMemo(() => {
     // Check resource.startIcon first (new format), then resource.image for backwards compatibility,
     // then config.image, then variant default
-    if (buttonElement?.startIcon) {
+    if (buttonElement?.startIcon && typeof buttonElement.startIcon === 'string') {
       return <img src={resolveStaticResourcePath(buttonElement.startIcon)} height={20} alt="" />;
     }
-    if (buttonElement?.image) {
+    if (buttonElement?.image && typeof buttonElement.image === 'string') {
       return <img src={resolveStaticResourcePath(buttonElement.image)} height={20} alt="" />;
     }
     if (buttonConfig?.image) {
@@ -159,7 +127,7 @@ function ButtonAdapter({resource, elementIndex = undefined}: ButtonAdapterPropsI
   }, [buttonElement?.startIcon, buttonElement?.image, buttonConfig?.image, image]);
 
   const endIcon = useMemo(() => {
-    if (buttonElement?.endIcon) {
+    if (buttonElement?.endIcon && typeof buttonElement.endIcon === 'string') {
       return <img src={resolveStaticResourcePath(buttonElement.endIcon)} height={20} alt="" />;
     }
     return undefined;

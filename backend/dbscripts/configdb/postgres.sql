@@ -44,11 +44,11 @@ CREATE TABLE ROLE_PERMISSION (
 -- Index for resource server queries with deployment isolation on ROLE_PERMISSION
 CREATE INDEX idx_role_permission_resource_server ON ROLE_PERMISSION (RESOURCE_SERVER_ID, DEPLOYMENT_ID);
 
--- Table to store Role assignments (to users and groups)
+-- Table to store Role assignments (to entities and groups)
 CREATE TABLE ROLE_ASSIGNMENT (
     DEPLOYMENT_ID       VARCHAR(255) NOT NULL,
     ROLE_ID         VARCHAR(36) NOT NULL,
-    ASSIGNEE_TYPE   VARCHAR(5)  NOT NULL CHECK (ASSIGNEE_TYPE IN ('user', 'group')),
+    ASSIGNEE_TYPE   VARCHAR(6)  NOT NULL CHECK (ASSIGNEE_TYPE IN ('entity', 'group')),
     ASSIGNEE_ID     VARCHAR(36) NOT NULL,
     CREATED_AT      TIMESTAMPTZ DEFAULT NOW(),
     UPDATED_AT      TIMESTAMPTZ DEFAULT NOW(),
@@ -94,44 +94,34 @@ CREATE INDEX idx_layout_deployment_id ON LAYOUT (DEPLOYMENT_ID);
 -- Unique index for layout handle per deployment
 CREATE UNIQUE INDEX idx_layout_handle_deployment ON LAYOUT (HANDLE, DEPLOYMENT_ID);
 
--- Table to store application details.
-CREATE TABLE APPLICATION (
+-- Table to store inbound client configurations for an entity.
+CREATE TABLE INBOUND_CLIENT (
     DEPLOYMENT_ID VARCHAR(255) NOT NULL,
-    ID VARCHAR(36) PRIMARY KEY,
-    APP_NAME VARCHAR(255) NOT NULL,
-    DESCRIPTION VARCHAR(255) NOT NULL,
+    ENTITY_ID VARCHAR(36) PRIMARY KEY,
     AUTH_FLOW_ID VARCHAR(100) NOT NULL,
     REGISTRATION_FLOW_ID VARCHAR(100) NOT NULL,
     IS_REGISTRATION_FLOW_ENABLED CHAR(1) DEFAULT '1',
     THEME_ID VARCHAR(36),
     LAYOUT_ID VARCHAR(36),
-    APP_JSON JSONB,
+    PROPERTIES JSONB,
     FOREIGN KEY (THEME_ID) REFERENCES THEME(ID) ON DELETE RESTRICT,
     FOREIGN KEY (LAYOUT_ID) REFERENCES LAYOUT(ID) ON DELETE RESTRICT
 );
 
--- Composite index for name-based application lookups
-CREATE INDEX idx_application_name_deployment ON APPLICATION (DEPLOYMENT_ID, APP_NAME);
+-- Index for efficient lookups by theme.
+CREATE INDEX idx_inbound_client_theme_id ON INBOUND_CLIENT(THEME_ID);
 
--- Index for efficient lookups of applications by theme.
-CREATE INDEX idx_application_theme_id ON APPLICATION(THEME_ID);
+-- Index for efficient lookups by layout.
+CREATE INDEX idx_inbound_client_layout_id ON INBOUND_CLIENT(LAYOUT_ID);
 
--- Index for efficient lookups of applications by layout.
-CREATE INDEX idx_application_layout_id ON APPLICATION(LAYOUT_ID);
-
--- Table to store OAuth configurations for applications.
-CREATE TABLE APP_OAUTH_INBOUND_CONFIG (
+-- Table to store OAuth inbound profile for an entity.
+CREATE TABLE OAUTH_INBOUND_PROFILE (
     DEPLOYMENT_ID VARCHAR(255) NOT NULL,
-    CLIENT_ID VARCHAR(255) NOT NULL,
-    CLIENT_SECRET VARCHAR(255) NOT NULL,
-    APP_ID VARCHAR(36) NOT NULL,
-    OAUTH_CONFIG_JSON JSONB,
-    PRIMARY KEY (CLIENT_ID, DEPLOYMENT_ID),
-    FOREIGN KEY (APP_ID) REFERENCES APPLICATION(ID) ON DELETE CASCADE
+    ENTITY_ID VARCHAR(36) NOT NULL,
+    OAUTH_CONFIG JSONB,
+    PRIMARY KEY (ENTITY_ID, DEPLOYMENT_ID),
+    FOREIGN KEY (ENTITY_ID) REFERENCES INBOUND_CLIENT(ENTITY_ID) ON DELETE CASCADE
 );
-
--- Index for APP_ID lookups on APP_OAUTH_INBOUND_CONFIG (UPDATE/DELETE by app ID, and JOIN in application list)
-CREATE INDEX idx_app_oauth_app_id ON APP_OAUTH_INBOUND_CONFIG (APP_ID);
 
 -- Table to store identity providers.
 CREATE TABLE IDP (
@@ -184,7 +174,8 @@ CREATE TABLE RESOURCE_SERVER (
     OU_ID VARCHAR(36) NOT NULL,
     NAME VARCHAR(100) NOT NULL,
     DESCRIPTION TEXT,
-    IDENTIFIER VARCHAR(100),
+    HANDLE VARCHAR(100),
+    IDENTIFIER VARCHAR(2048),
     PROPERTIES JSONB,
     CREATED_AT TIMESTAMPTZ DEFAULT NOW(),
     UPDATED_AT TIMESTAMPTZ DEFAULT NOW(),
@@ -193,6 +184,11 @@ CREATE TABLE RESOURCE_SERVER (
 
 -- Composite index for name-based resource server lookups
 CREATE INDEX idx_resource_server_name_deployment ON RESOURCE_SERVER (DEPLOYMENT_ID, NAME);
+
+-- Unique constraint: Resource server handle must be unique per deployment (when not null)
+CREATE UNIQUE INDEX uq_resource_server_handle
+    ON RESOURCE_SERVER(HANDLE, DEPLOYMENT_ID)
+    WHERE HANDLE IS NOT NULL;
 
 -- Unique constraint: Resource server identifier must be unique per deployment (when not null)
 CREATE UNIQUE INDEX uq_resource_server_identifier

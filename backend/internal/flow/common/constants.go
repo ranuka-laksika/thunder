@@ -135,8 +135,12 @@ const (
 	DataInviteLink = "inviteLink"
 	// DataEmailSent is the key used to indicate that an email was sent successfully in the flow response.
 	DataEmailSent = "emailSent"
+	// DataSMSSent is the key used to indicate that an SMS was sent successfully in the flow response.
+	DataSMSSent = "smsSent"
 	// DataRootOUID is the key used to pass the root OU ID to the frontend for the OU tree picker.
 	DataRootOUID = "rootOuId"
+	// DataPromptMessage is the key used to pass a message to be displayed in the prompt node.
+	DataPromptMessage = "message"
 )
 
 // DefaultHTTPTimeout defines the default timeout duration for HTTP requests.
@@ -147,6 +151,10 @@ const (
 	NodePropertyAllowAuthenticationWithoutLocalUser = "allowAuthenticationWithoutLocalUser"
 	// NodePropertyAllowRegistrationWithExistingUser indicates whether registration is allowed with an existing user
 	NodePropertyAllowRegistrationWithExistingUser = "allowRegistrationWithExistingUser"
+	// NodePropertyAllowCrossOUProvisioning indicates whether an existing user should be provisioned to the
+	// target OU when they accept an invite. Used together with allowRegistrationWithExistingUser. When true,
+	// the user is created in the target OU; when false, provisioning is skipped entirely.
+	NodePropertyAllowCrossOUProvisioning = "allowCrossOUProvisioning"
 	// NodePropertyOUResolveFrom specifies the strategy for resolving the organization unit.
 	// Supported values: "caller" (use the caller's OU).
 	NodePropertyOUResolveFrom = "resolveFrom"
@@ -157,6 +165,8 @@ const (
 	RuntimeKeyUserAutoProvisioned = "userAutoProvisioned"
 	// RuntimeKeyUserEligibleForProvisioning indicates whether the user is eligible for auto provisioning
 	RuntimeKeyUserEligibleForProvisioning = "userEligibleForProvisioning"
+	// RuntimeKeyUserAmbiguous indicates the user exists in multiple OUs and requires disambiguation
+	RuntimeKeyUserAmbiguous = "userAmbiguous"
 	// RuntimeKeySkipProvisioning indicates whether to skip provisioning
 	RuntimeKeySkipProvisioning = "skipProvisioning"
 	// RuntimeKeyClientID holds the OAuth client ID for the current flow execution, if applicable.
@@ -183,6 +193,10 @@ const (
 	RuntimeKeyUserAttributesCacheTTLSeconds = "user_attributes_cache_ttl_seconds"
 	// RuntimeKeyInviteLink holds the generated invite link for downstream executors (e.g., EmailExecutor).
 	RuntimeKeyInviteLink = "inviteLink"
+	// RuntimeKeySkipDelivery indicates that delivery should be skipped for the current flow.
+	RuntimeKeySkipDelivery = "skipDelivery"
+	// RuntimeKeyCandidateUsers holds serialized candidate users during disambiguation in resolve mode.
+	RuntimeKeyCandidateUsers = "candidateUsers"
 )
 
 // TODO: Define a go type for InputType when formalizing input types
@@ -191,6 +205,8 @@ const (
 const (
 	// InputTypeText represents a text input type.
 	InputTypeText = "TEXT_INPUT"
+	// InputTypeEmail represents an email input type.
+	InputTypeEmail = "EMAIL_INPUT"
 	// InputTypePassword represents a password credential input type.
 	InputTypePassword = "PASSWORD_INPUT"
 	// InputTypeOTP represents a one-time password input type.
@@ -207,16 +223,34 @@ const (
 	// - Invite tokens
 )
 
+// Attribute name constants for well-known user attributes used across flow executors.
+const (
+	// AttributeMobileNumber is the default attribute name for a user's mobile phone number.
+	AttributeMobileNumber = "mobileNumber"
+)
+
 // sensitiveInputTypes contains the list of input types that are considered sensitive.
 var sensitiveInputTypes = []string{
 	InputTypePassword,
 	InputTypeOTP,
 }
 
+// ActionType represents the type of action in a prompt.
+type ActionType string
+
+const (
+	// ActionTypeSubmit represents a primary/approve action
+	ActionTypeSubmit ActionType = "SUBMIT"
+	// ActionTypeReject represents a reject/deny action
+	ActionTypeReject ActionType = "REJECT"
+)
+
 // ForwardedData key constants define keys used in the ForwardedData map.
 const (
-	// ForwardedDataKeyInputs is the key used to store input data in ForwardedData.
+	// ForwardedDataKeyInputs is the key used to store input data in ForwardedData
 	ForwardedDataKeyInputs = "inputs"
-	// ForwardedDataKeyConsentPrompt is the key used to forward consent prompt data to the prompt node.
+	// ForwardedDataKeyConsentPrompt is the key used to forward consent prompt data to the prompt node
 	ForwardedDataKeyConsentPrompt = "consent_prompt"
+	// ForwardedDataKeyActionType holds the action type selected by the user for the immediate next node
+	ForwardedDataKeyActionType = "actionType"
 )

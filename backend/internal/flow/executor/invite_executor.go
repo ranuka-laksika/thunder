@@ -58,6 +58,18 @@ func newInviteExecutor(flowFactory core.FlowFactoryInterface) *inviteExecutor {
 	}
 }
 
+// GetExecutionPolicy returns the execution policy for the given mode.
+// The verify mode skips challenge token validation because the invite token itself serves as the challenge.
+func (e *inviteExecutor) GetExecutionPolicy(mode string) *core.ExecutionPolicy {
+	if mode == ExecutorModeVerify {
+		return &core.ExecutionPolicy{
+			SkipChallengeValidation: true,
+			AllowSegmentRestart:     true,
+		}
+	}
+	return nil
+}
+
 // Execute delegates to the appropriate mode handler based on the executor mode.
 func (e *inviteExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, error) {
 	switch ctx.ExecutorMode {
@@ -72,7 +84,7 @@ func (e *inviteExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorRespons
 
 // executeGenerate generates the invite token and link.
 func (e *inviteExecutor) executeGenerate(ctx *core.NodeContext) (*common.ExecutorResponse, error) {
-	logger := e.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := e.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	logger.Debug("Executing invite executor in generate mode")
 
 	execResp := &common.ExecutorResponse{
@@ -102,7 +114,7 @@ func (e *inviteExecutor) executeGenerate(ctx *core.NodeContext) (*common.Executo
 
 // executeVerify validates the user-provided invite token against the stored token.
 func (e *inviteExecutor) executeVerify(ctx *core.NodeContext) (*common.ExecutorResponse, error) {
-	logger := e.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := e.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	logger.Debug("Executing invite executor in verify mode")
 
 	execResp := &common.ExecutorResponse{
@@ -128,7 +140,7 @@ func (e *inviteExecutor) executeVerify(ctx *core.NodeContext) (*common.ExecutorR
 	}
 
 	if inviteTokenInput != storedToken {
-		logger.Debug("Invite token mismatch", log.String("flowId", ctx.FlowID))
+		logger.Debug("Invite token mismatch", log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 		execResp.Status = common.ExecFailure
 		execResp.FailureReason = "Invalid invite token"
 		return execResp, nil
@@ -157,7 +169,7 @@ func (e *inviteExecutor) generateInviteLink(ctx *core.NodeContext, inviteToken s
 		gateConfig.Port,
 		gateConfig.Path)
 	queryParams := url.Values{
-		"flowId":      []string{ctx.FlowID},
+		"executionId": []string{ctx.ExecutionID},
 		"inviteToken": []string{inviteToken},
 	}
 

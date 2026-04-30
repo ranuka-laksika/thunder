@@ -18,13 +18,13 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import UserTypeQueryKeys from '../constants/userTypeQueryKeys';
 import type {ApiUserSchema, CreateUserSchemaRequest} from '../types/user-types';
 
 /**
- * Custom React hook to create a new user schema (user type) in the Thunder server.
+ * Custom React hook to create a new user schema (user type) in the server.
  *
  * @returns TanStack Query mutation object for creating user types
  */
@@ -46,7 +46,7 @@ export default function useCreateUserType(): UseMutationResult<ApiUserSchema, Er
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify(requestData),
+        data: requestData,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

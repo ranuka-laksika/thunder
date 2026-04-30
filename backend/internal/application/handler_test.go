@@ -31,6 +31,7 @@ import (
 
 	"github.com/asgardeo/thunder/internal/application/model"
 	"github.com/asgardeo/thunder/internal/cert"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	oauth2const "github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
 	"github.com/asgardeo/thunder/internal/system/error/apierror"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
@@ -250,9 +251,9 @@ func (suite *HandlerTestSuite) TestHandleApplicationPostRequest_ServiceError() {
 		},
 		{
 			name:           "InternalServerError",
-			svcErr:         &ErrorInternalServerError,
+			svcErr:         &serviceerror.InternalServerError,
 			expectedStatus: http.StatusInternalServerError,
-			expectedCode:   ErrorInternalServerError.Code,
+			expectedCode:   serviceerror.InternalServerError.Code,
 		},
 	}
 
@@ -416,7 +417,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationListRequest_ServiceError() {
 	mockService := NewApplicationServiceInterfaceMock(suite.T())
 	handler := newApplicationHandler(mockService)
 
-	svcErr := &ErrorInternalServerError
+	svcErr := &serviceerror.InternalServerError
 
 	mockService.On("GetApplicationList", mock.Anything).Return(nil, svcErr)
 
@@ -431,7 +432,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationListRequest_ServiceError() {
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 
 	mockService.AssertExpectations(suite.T())
 }
@@ -625,7 +626,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationGetRequest_ServiceError() {
 	mockService := NewApplicationServiceInterfaceMock(suite.T())
 	handler := newApplicationHandler(mockService)
 
-	svcErr := &ErrorInternalServerError
+	svcErr := &serviceerror.InternalServerError
 
 	mockService.On("GetApplication", mock.Anything, "test-app-id").Return(nil, svcErr)
 
@@ -641,7 +642,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationGetRequest_ServiceError() {
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 
 	mockService.AssertExpectations(suite.T())
 }
@@ -1007,7 +1008,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationDeleteRequest_ServiceError()
 	mockService := NewApplicationServiceInterfaceMock(suite.T())
 	handler := newApplicationHandler(mockService)
 
-	svcErr := &ErrorInternalServerError
+	svcErr := &serviceerror.InternalServerError
 
 	mockService.On("DeleteApplication", mock.Anything, "test-app-id").Return(svcErr)
 
@@ -1248,7 +1249,7 @@ func (suite *HandlerTestSuite) TestHandleError_ServerError() {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/applications", nil)
 
-	svcErr := &ErrorInternalServerError
+	svcErr := &serviceerror.InternalServerError
 
 	handler.handleError(w, r, svcErr)
 
@@ -1258,7 +1259,7 @@ func (suite *HandlerTestSuite) TestHandleError_ServerError() {
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 }
 
 func (suite *HandlerTestSuite) TestProcessInboundAuthConfigFromRequest_Success() {
@@ -1380,12 +1381,12 @@ func (suite *HandlerTestSuite) TestProcessInboundAuthConfigFromRequest_WithToken
 			OAuthAppConfig: &model.OAuthAppConfigComplete{
 				ClientID:     "test-client-id",
 				ClientSecret: "test-secret",
-				Token: &model.OAuthTokenConfig{
-					AccessToken: &model.AccessTokenConfig{
+				Token: &inboundmodel.OAuthTokenConfig{
+					AccessToken: &inboundmodel.AccessTokenConfig{
 						ValidityPeriod: 3600,
 						UserAttributes: []string{"email", "name"},
 					},
-					IDToken: &model.IDTokenConfig{
+					IDToken: &inboundmodel.IDTokenConfig{
 						ValidityPeriod: 3600,
 						UserAttributes: []string{"email"},
 					},
@@ -1454,7 +1455,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationPostRequest_WithCertificate(
 	appRequest := model.ApplicationRequest{
 		Name:        "TestApp",
 		Description: "Test Description",
-		Certificate: &model.ApplicationCertificate{
+		Certificate: &inboundmodel.Certificate{
 			Type:  cert.CertificateTypeJWKS,
 			Value: `{"keys":[{"kty":"RSA","kid":"test"}]}`,
 		},
@@ -1464,7 +1465,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationPostRequest_WithCertificate(
 		ID:          "test-app-id",
 		Name:        "TestApp",
 		Description: "Test Description",
-		Certificate: &model.ApplicationCertificate{
+		Certificate: &inboundmodel.Certificate{
 			Type:  cert.CertificateTypeJWKS,
 			Value: `{"keys":[{"kty":"RSA","kid":"test"}]}`,
 		},
@@ -1944,7 +1945,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationPostRequest_UnsupportedInbou
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 
 	mockService.AssertExpectations(suite.T())
 }
@@ -1988,7 +1989,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationPostRequest_NilOAuthConfig()
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 
 	mockService.AssertExpectations(suite.T())
 }
@@ -2103,7 +2104,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationPutRequest_UnsupportedInboun
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 
 	mockService.AssertExpectations(suite.T())
 }
@@ -2149,7 +2150,7 @@ func (suite *HandlerTestSuite) TestHandleApplicationPutRequest_NilOAuthConfig() 
 	var errResp apierror.ErrorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), ErrorInternalServerError.Code, errResp.Code)
+	assert.Equal(suite.T(), serviceerror.InternalServerError.Code, errResp.Code)
 
 	mockService.AssertExpectations(suite.T())
 }

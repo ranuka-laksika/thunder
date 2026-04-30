@@ -26,33 +26,31 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	appmodel "github.com/asgardeo/thunder/internal/application/model"
 	"github.com/asgardeo/thunder/internal/attributecache"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
+	"github.com/asgardeo/thunder/internal/ou"
 	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	"github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/tests/mocks/attributecachemock"
+	"github.com/asgardeo/thunder/tests/mocks/oumock"
 )
 
 type UtilsTestSuite struct {
 	suite.Suite
 }
 
-const (
-	testTokenAud        = "https://token-aud.example.com" //nolint:gosec // Test data, not a real credential
-	testDefaultAudience = "default-app"
-)
-
 func TestUtilsTestSuite(t *testing.T) {
 	suite.Run(t, new(UtilsTestSuite))
 }
 
 func (suite *UtilsTestSuite) SetupTest() {
-	// Initialize Thunder Runtime for tests
+	config.ResetThunderRuntime()
+
 	testConfig := &config.Config{
 		JWT: config.JWTConfig{
-			Issuer:         "https://default.thunder.io",
+			Issuer:         "https://thunder.io",
 			ValidityPeriod: 3600,
 		},
 	}
@@ -68,7 +66,7 @@ func (suite *UtilsTestSuite) TestGetValidIssuers_WithNilOAuthApp() {
 }
 
 func (suite *UtilsTestSuite) TestGetValidIssuers_WithOnlyDefaultIssuer() {
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -81,9 +79,9 @@ func (suite *UtilsTestSuite) TestGetValidIssuers_WithOnlyDefaultIssuer() {
 
 func (suite *UtilsTestSuite) TestGetValidIssuers_WithTokenConfig() {
 	// OAuthApp with a Token config should still use Thunder-level issuer from config
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token:    &appmodel.OAuthTokenConfig{},
+		Token:    &inboundmodel.OAuthTokenConfig{},
 	}
 
 	validIssuers := getValidIssuers(oauthApp)
@@ -95,10 +93,10 @@ func (suite *UtilsTestSuite) TestGetValidIssuers_WithTokenConfig() {
 
 func (suite *UtilsTestSuite) TestGetValidIssuers_WithAccessTokenConfig() {
 	// OAuthApp with Token and AccessToken config should still use Thunder-level issuer from config
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{
 				ValidityPeriod: 7200,
 			},
 		},
@@ -113,10 +111,10 @@ func (suite *UtilsTestSuite) TestGetValidIssuers_WithAccessTokenConfig() {
 
 func (suite *UtilsTestSuite) TestGetValidIssuers_WithIDTokenConfig() {
 	// OAuthApp with Token and IDToken config should still use Thunder-level issuer from config
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			IDToken: &appmodel.IDTokenConfig{
+		Token: &inboundmodel.OAuthTokenConfig{
+			IDToken: &inboundmodel.IDTokenConfig{
 				ValidityPeriod: 3600,
 			},
 		},
@@ -131,10 +129,10 @@ func (suite *UtilsTestSuite) TestGetValidIssuers_WithIDTokenConfig() {
 
 func (suite *UtilsTestSuite) TestGetValidIssuers_AlwaysUsesThunderIssuer() {
 	// Valid issuers always come from Thunder config, never empty strings
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{},
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{},
 		},
 	}
 
@@ -150,7 +148,7 @@ func (suite *UtilsTestSuite) TestGetValidIssuers_AlwaysUsesThunderIssuer() {
 // ============================================================================
 
 func (suite *UtilsTestSuite) TestvalidateIssuer_WithValidDefaultIssuer() {
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -161,9 +159,9 @@ func (suite *UtilsTestSuite) TestvalidateIssuer_WithValidDefaultIssuer() {
 
 func (suite *UtilsTestSuite) TestvalidateIssuer_WithThunderIssuerAndTokenConfig() {
 	// Thunder-level issuer is always valid regardless of token config presence
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token:    &appmodel.OAuthTokenConfig{},
+		Token:    &inboundmodel.OAuthTokenConfig{},
 	}
 
 	err := validateIssuer("https://thunder.io", oauthApp)
@@ -173,10 +171,10 @@ func (suite *UtilsTestSuite) TestvalidateIssuer_WithThunderIssuerAndTokenConfig(
 
 func (suite *UtilsTestSuite) TestvalidateIssuer_WithThunderIssuerAndAccessTokenConfig() {
 	// Thunder-level issuer is always valid regardless of access token config presence
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{
 				ValidityPeriod: 3600,
 			},
 		},
@@ -188,7 +186,7 @@ func (suite *UtilsTestSuite) TestvalidateIssuer_WithThunderIssuerAndAccessTokenC
 }
 
 func (suite *UtilsTestSuite) TestvalidateIssuer_WithInvalidIssuer() {
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -200,7 +198,7 @@ func (suite *UtilsTestSuite) TestvalidateIssuer_WithInvalidIssuer() {
 }
 
 func (suite *UtilsTestSuite) TestvalidateIssuer_WithEmptyIssuer() {
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -226,10 +224,10 @@ func (suite *UtilsTestSuite) TestvalidateIssuer_WithNilOAuthAppInvalidIssuer() {
 
 func (suite *UtilsTestSuite) TestFederationScenario_OnlyThunderIssuerIsValid() {
 	// Only the Thunder-level issuer from config is accepted; app-level issuers are no longer supported
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{},
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{},
 		},
 	}
 
@@ -251,7 +249,7 @@ func (suite *UtilsTestSuite) TestFederationScenario_FutureExternalIssuerSupport(
 	// TODO: When external issuer support is added, update GetValidIssuers to include
 	// external federated issuers from configuration
 
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -288,65 +286,6 @@ func (suite *UtilsTestSuite) TestJoinScopes_WithEmptySlice() {
 func (suite *UtilsTestSuite) TestJoinScopes_WithNilSlice() {
 	scopes := []string(nil)
 	result := JoinScopes(scopes)
-
-	assert.Equal(suite.T(), "", result)
-}
-
-// ============================================================================
-// DetermineAudience Tests
-// ============================================================================
-
-func (suite *UtilsTestSuite) TestDetermineAudience_WithAudience() {
-	audience := "https://api.example.com"
-	resource := "https://other-api.com"
-	tokenAud := testTokenAud
-	defaultAudience := testDefaultAudience
-
-	result := DetermineAudience(audience, resource, tokenAud, defaultAudience)
-
-	assert.Equal(suite.T(), audience, result)
-}
-
-func (suite *UtilsTestSuite) TestDetermineAudience_WithResource() {
-	audience := ""
-	resource := "https://api.example.com"
-	tokenAud := testTokenAud
-	defaultAudience := testDefaultAudience
-
-	result := DetermineAudience(audience, resource, tokenAud, defaultAudience)
-
-	assert.Equal(suite.T(), resource, result)
-}
-
-func (suite *UtilsTestSuite) TestDetermineAudience_WithTokenAud() {
-	audience := ""
-	resource := ""
-	tokenAud := testTokenAud
-	defaultAudience := testDefaultAudience
-
-	result := DetermineAudience(audience, resource, tokenAud, defaultAudience)
-
-	assert.Equal(suite.T(), tokenAud, result)
-}
-
-func (suite *UtilsTestSuite) TestDetermineAudience_WithoutResource() {
-	audience := ""
-	resource := ""
-	tokenAud := ""
-	defaultAudience := testDefaultAudience
-
-	result := DetermineAudience(audience, resource, tokenAud, defaultAudience)
-
-	assert.Equal(suite.T(), defaultAudience, result)
-}
-
-func (suite *UtilsTestSuite) TestDetermineAudience_EmptyDefault() {
-	audience := ""
-	resource := ""
-	tokenAud := ""
-	defaultAudience := ""
-
-	result := DetermineAudience(audience, resource, tokenAud, defaultAudience)
 
 	assert.Equal(suite.T(), "", result)
 }
@@ -620,7 +559,7 @@ func (suite *UtilsTestSuite) TestFetchUserAttributes_GetAttributeCacheError() {
 	mockAttrCacheService := attributecachemock.NewAttributeCacheServiceInterfaceMock(suite.T())
 
 	// Mock GetAttributeCache to return error
-	serverErr := &serviceerror.I18nServiceError{
+	serverErr := &serviceerror.ServiceError{
 		Type: serviceerror.ServerErrorType,
 		Code: "CACHE_NOT_FOUND",
 		Error: core.I18nMessage{
@@ -802,7 +741,7 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_RefreshToken_WithServerLevel
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -829,7 +768,7 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_RefreshToken_WithoutServerLe
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 	}
 
@@ -881,9 +820,9 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_RefreshToken_WithTokenConfig
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token:    &appmodel.OAuthTokenConfig{},
+		Token:    &inboundmodel.OAuthTokenConfig{},
 	}
 
 	result := ResolveTokenConfig(oauthApp, TokenTypeRefresh)
@@ -922,7 +861,7 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_AccessToken_WithNilToken() {
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
 	// oauthApp.Token is nil - should use default config
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 		Token:    nil,
 	}
@@ -944,10 +883,10 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_AccessToken_WithAppLevelConf
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			AccessToken: &appmodel.AccessTokenConfig{
+		Token: &inboundmodel.OAuthTokenConfig{
+			AccessToken: &inboundmodel.AccessTokenConfig{
 				ValidityPeriod: 7200,
 			},
 		},
@@ -988,7 +927,7 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_IDToken_WithNilToken() {
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
 	// oauthApp.Token is nil - should use default config
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
 		Token:    nil,
 	}
@@ -1010,10 +949,10 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_IDToken_WithAppLevelConfig()
 	}
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token: &appmodel.OAuthTokenConfig{
-			IDToken: &appmodel.IDTokenConfig{
+		Token: &inboundmodel.OAuthTokenConfig{
+			IDToken: &inboundmodel.IDTokenConfig{
 				ValidityPeriod: 1800,
 			},
 		},
@@ -1053,13 +992,162 @@ func (suite *UtilsTestSuite) TestResolveTokenConfig_WithTokenConfig_UsesThunderI
 	_ = config.InitializeThunderRuntime("test", testConfig)
 
 	// OAuthApp with token config always uses Thunder-level issuer from config
-	oauthApp := &appmodel.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		ClientID: "test-client",
-		Token:    &appmodel.OAuthTokenConfig{},
+		Token:    &inboundmodel.OAuthTokenConfig{},
 	}
 
 	result := ResolveTokenConfig(oauthApp, TokenTypeAccess)
 
 	assert.NotNil(suite.T(), result)
 	assert.Equal(suite.T(), "https://thunder.io", result.Issuer)
+}
+
+const (
+	testBCCAppID = "app-123"
+	testBCCOUID  = "ou-456"
+)
+
+func newOAuthAppForClientAttributes(ouID string) *inboundmodel.OAuthClient {
+	return &inboundmodel.OAuthClient{
+		AppID: testBCCAppID,
+		OUID:  ouID,
+	}
+}
+
+func (suite *UtilsTestSuite) TestBuildClientAttributes_NoOUID_ReturnsNil() {
+	ous := oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
+
+	app := newOAuthAppForClientAttributes("")
+	claims, err := BuildClientAttributes(context.Background(), app, ous)
+
+	assert.NoError(suite.T(), err)
+	assert.Nil(suite.T(), claims)
+}
+
+func (suite *UtilsTestSuite) TestBuildClientAttributes_NilOAuthApp_ReturnsNil() {
+	ous := oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
+
+	claims, err := BuildClientAttributes(context.Background(), nil, ous)
+
+	assert.NoError(suite.T(), err)
+	assert.Nil(suite.T(), claims)
+}
+
+func (suite *UtilsTestSuite) TestBuildClientAttributes_HappyPath() {
+	ous := oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
+
+	ous.On("GetOrganizationUnit", context.Background(), testBCCOUID).Return(ou.OrganizationUnit{
+		ID:     testBCCOUID,
+		Name:   "Engineering",
+		Handle: "eng",
+	}, (*serviceerror.ServiceError)(nil))
+
+	app := newOAuthAppForClientAttributes(testBCCOUID)
+	claims, err := BuildClientAttributes(context.Background(), app, ous)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), claims)
+	assert.Equal(suite.T(), testBCCOUID, claims[constants.ClaimOUID])
+	assert.Equal(suite.T(), "Engineering", claims[constants.ClaimOUName])
+	assert.Equal(suite.T(), "eng", claims[constants.ClaimOUHandle])
+}
+
+func (suite *UtilsTestSuite) TestBuildClientAttributes_OULookupError_ReturnsError() {
+	ous := oumock.NewOrganizationUnitServiceInterfaceMock(suite.T())
+
+	ous.On("GetOrganizationUnit", context.Background(), testBCCOUID).Return(
+		ou.OrganizationUnit{},
+		&serviceerror.ServiceError{
+			Code:  "OU-0001",
+			Error: core.I18nMessage{Key: "error.test.not_found", DefaultValue: "not found"},
+		},
+	)
+
+	app := newOAuthAppForClientAttributes(testBCCOUID)
+	claims, err := BuildClientAttributes(context.Background(), app, ous)
+
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), claims)
+}
+
+func (suite *UtilsTestSuite) TestBuildClientAttributes_NilOUService_ReturnsNil() {
+	app := newOAuthAppForClientAttributes(testBCCOUID)
+	claims, err := BuildClientAttributes(context.Background(), app, nil)
+	assert.NoError(suite.T(), err)
+	assert.Nil(suite.T(), claims)
+}
+
+// ============================================================================
+// §1 — extractAudiences direct unit tests
+// ============================================================================
+
+func (suite *UtilsTestSuite) TestExtractAudiences_StringValue() {
+	claims := map[string]interface{}{"aud": "x"}
+	auds, err := extractAudiences(claims)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []string{"x"}, auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_StringSlice() {
+	claims := map[string]interface{}{"aud": []interface{}{"x", "y"}}
+	auds, err := extractAudiences(claims)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []string{"x", "y"}, auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_SingleElementSlice() {
+	claims := map[string]interface{}{"aud": []interface{}{"x"}}
+	auds, err := extractAudiences(claims)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []string{"x"}, auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_EmptyString_ReturnsError() {
+	claims := map[string]interface{}{"aud": ""}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_EmptySlice_ReturnsError() {
+	claims := map[string]interface{}{"aud": []interface{}{}}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_NilValue_ReturnsError() {
+	claims := map[string]interface{}{"aud": nil}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_MissingKey_ReturnsError() {
+	claims := map[string]interface{}{}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_WrongType_ReturnsError() {
+	claims := map[string]interface{}{"aud": 123}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_MixedSliceNonString_ReturnsError() {
+	claims := map[string]interface{}{"aud": []interface{}{"x", 42}}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
+}
+
+func (suite *UtilsTestSuite) TestExtractAudiences_SliceWithEmptyString_ReturnsError() {
+	claims := map[string]interface{}{"aud": []interface{}{"x", ""}}
+	auds, err := extractAudiences(claims)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), auds)
 }

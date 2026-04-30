@@ -20,9 +20,13 @@ package userinfo
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -250,6 +254,7 @@ func (ts *UserInfoTestSuite) createTestApplication(authFlowID string) string {
 	app := map[string]interface{}{
 		"name":                      appName,
 		"description":               "Application for UserInfo integration tests",
+		"ouId":                      ts.ouID,
 		"authFlowId":                authFlowID,
 		"isRegistrationFlowEnabled": false,
 		"allowedUserTypes":          []string{"userinfo-person"},
@@ -376,13 +381,13 @@ func (ts *UserInfoTestSuite) getAuthorizationCodeToken(scope string) (string, er
 	}
 
 	// Step 2: Extract auth ID and flow ID
-	authId, flowID, err := testutils.ExtractAuthData(location)
+	authId, executionId, err := testutils.ExtractAuthData(location)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract auth ID: %w", err)
 	}
 
 	// Step 3: Initiate authentication flow
-	_, err = testutils.ExecuteAuthenticationFlow(flowID, nil, "")
+	initialStep, err := testutils.ExecuteAuthenticationFlow(executionId, nil, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to initiate authentication flow: %w", err)
 	}
@@ -392,7 +397,7 @@ func (ts *UserInfoTestSuite) getAuthorizationCodeToken(scope string) (string, er
 		"username": "userinfo_test_user",
 		"password": "SecurePass123!",
 	}
-	flowStep, err := testutils.ExecuteAuthenticationFlow(flowID, authInputs, "action_001")
+	flowStep, err := testutils.ExecuteAuthenticationFlow(executionId, authInputs, "action_001", initialStep.ChallengeToken)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute authentication flow: %w", err)
 	}
@@ -446,13 +451,13 @@ func (ts *UserInfoTestSuite) getRefreshToken(scope string) (string, error) {
 	}
 
 	// Step 2: Extract auth ID and flow ID
-	authId, flowID, err := testutils.ExtractAuthData(location)
+	authId, executionId, err := testutils.ExtractAuthData(location)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract auth ID: %w", err)
 	}
 
 	// Step 3: Initiate authentication flow
-	_, err = testutils.ExecuteAuthenticationFlow(flowID, map[string]string{}, "")
+	initialStep, err := testutils.ExecuteAuthenticationFlow(executionId, map[string]string{}, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to initiate authentication flow: %w", err)
 	}
@@ -462,7 +467,7 @@ func (ts *UserInfoTestSuite) getRefreshToken(scope string) (string, error) {
 		"username": "userinfo_test_user",
 		"password": "SecurePass123!",
 	}
-	flowStep, err := testutils.ExecuteAuthenticationFlow(flowID, authInputs, "action_001")
+	flowStep, err := testutils.ExecuteAuthenticationFlow(executionId, authInputs, "action_001", initialStep.ChallengeToken)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute authentication flow: %w", err)
 	}
@@ -906,6 +911,7 @@ func (ts *UserInfoTestSuite) createApplicationWithConfig(name string, oauthConfi
 	app := map[string]interface{}{
 		"name":                      name,
 		"description":               "Application for UserInfo integration tests",
+		"ouId":                      ts.ouID,
 		"authFlowId":                ts.flowID,
 		"isRegistrationFlowEnabled": false,
 		"allowedUserTypes":          []string{"userinfo-person"},
@@ -949,13 +955,13 @@ func (ts *UserInfoTestSuite) getAuthorizationCodeTokenWithClient(scope, cID, cSe
 	location := authzResp.Header.Get("Location")
 
 	// 2. Extract
-	authId, flowID, err := testutils.ExtractAuthData(location)
+	authId, executionId, err := testutils.ExtractAuthData(location)
 	if err != nil {
 		return "", err
 	}
 
 	// 3. Initiate Auth
-	_, err = testutils.ExecuteAuthenticationFlow(flowID, nil, "")
+	initialStep, err := testutils.ExecuteAuthenticationFlow(executionId, nil, "")
 	if err != nil {
 		return "", err
 	}
@@ -965,7 +971,7 @@ func (ts *UserInfoTestSuite) getAuthorizationCodeTokenWithClient(scope, cID, cSe
 		"username": "userinfo_test_user",
 		"password": "SecurePass123!",
 	}
-	flowStep, err := testutils.ExecuteAuthenticationFlow(flowID, authInputs, "action_001")
+	flowStep, err := testutils.ExecuteAuthenticationFlow(executionId, authInputs, "action_001", initialStep.ChallengeToken)
 	if err != nil {
 		return "", err
 	}
@@ -1014,7 +1020,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_JWS_Response() {
 			},
 		},
 		"userInfo": map[string]interface{}{
-			"responseType":   "JWS",
+			"signingAlg":     "RS256",
 			"userAttributes": []string{"email", "given_name", "family_name"},
 		},
 		"scopeClaims": map[string][]string{
@@ -1052,4 +1058,146 @@ func (ts *UserInfoTestSuite) TestUserInfo_JWS_Response() {
 
 	parts := strings.Split(jwtString, ".")
 	ts.Require().Equal(3, len(parts), "Invalid JWT format")
+}
+
+// buildRSAPublicJWKS generates an RSA key pair and returns the compact public JWKS JSON
+// and the private key (for optional decryption in tests).
+func buildRSAPublicJWKS() (jwksJSON string, privateKey *rsa.PrivateKey, err error) {
+	privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", nil, err
+	}
+	eBytes := big.NewInt(int64(privateKey.PublicKey.E)).Bytes()
+	key := map[string]interface{}{
+		"kty": "RSA",
+		"use": "enc",
+		"alg": "RSA-OAEP-256",
+		"n":   base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()),
+		"e":   base64.RawURLEncoding.EncodeToString(eBytes),
+	}
+	b, err := json.Marshal(map[string]interface{}{"keys": []interface{}{key}})
+	if err != nil {
+		return "", nil, err
+	}
+	return string(b), privateKey, nil
+}
+
+// TestUserInfo_JWE_Response verifies that an application configured with encryptionAlg/encryptionEnc
+// returns a JWE compact serialisation (five dot-separated parts) with Content-Type: application/jose.
+func (ts *UserInfoTestSuite) TestUserInfo_JWE_Response() {
+	jwksJSON, _, err := buildRSAPublicJWKS()
+	ts.Require().NoError(err, "Failed to generate RSA key pair for JWE test")
+
+	config := map[string]interface{}{
+		"clientId":      "userinfo_jwe_test_client",
+		"clientSecret":  "userinfo_jwe_test_secret",
+		"redirectUris":  []string{redirectURI},
+		"grantTypes":    []string{"authorization_code"},
+		"responseTypes": []string{"code"},
+		"scopes":        []string{"openid", "profile", "email"},
+		"token": map[string]interface{}{
+			"idToken": map[string]interface{}{
+				"userAttributes": []string{"email", "given_name"},
+			},
+		},
+		"userInfo": map[string]interface{}{
+			"encryptionAlg":  "RSA-OAEP-256",
+			"encryptionEnc":  "A256GCM",
+			"userAttributes": []string{"email", "given_name"},
+		},
+		"certificate": map[string]interface{}{
+			"type":  "JWKS",
+			"value": jwksJSON,
+		},
+		"scopeClaims": map[string][]string{
+			"profile": {"given_name"},
+			"email":   {"email"},
+		},
+	}
+
+	appID := ts.createApplicationWithConfig("UserInfoJWETestApp", config)
+	defer ts.deleteApplication(appID)
+
+	accessToken, err := ts.getAuthorizationCodeTokenWithClient(
+		"openid profile email",
+		"userinfo_jwe_test_client",
+		"userinfo_jwe_test_secret",
+	)
+	ts.Require().NoError(err)
+
+	resp, err := ts.callUserInfo(accessToken)
+	ts.Require().NoError(err)
+	defer resp.Body.Close()
+
+	assert.Equal(ts.T(), http.StatusOK, resp.StatusCode)
+	assert.Equal(ts.T(), "application/jose", resp.Header.Get("Content-Type"))
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(bodyBytes)
+
+	// A JWE compact serialisation has exactly 5 dot-separated parts.
+	parts := strings.Split(string(bodyBytes), ".")
+	assert.Equal(ts.T(), 5, len(parts), "JWE response must have 5 dot-separated parts")
+}
+
+// TestUserInfo_NestedJWT_Response verifies that an application configured with both signingAlg and
+// encryptionAlg/encryptionEnc returns a Nested JWT (sign-then-encrypt JWE) with
+// Content-Type: application/jose.
+func (ts *UserInfoTestSuite) TestUserInfo_NestedJWT_Response() {
+	jwksJSON, _, err := buildRSAPublicJWKS()
+	ts.Require().NoError(err, "Failed to generate RSA key pair for Nested JWT test")
+
+	config := map[string]interface{}{
+		"clientId":      "userinfo_nested_jwt_test_client",
+		"clientSecret":  "userinfo_nested_jwt_test_secret",
+		"redirectUris":  []string{redirectURI},
+		"grantTypes":    []string{"authorization_code"},
+		"responseTypes": []string{"code"},
+		"scopes":        []string{"openid", "profile", "email"},
+		"token": map[string]interface{}{
+			"idToken": map[string]interface{}{
+				"userAttributes": []string{"email", "given_name"},
+			},
+		},
+		"userInfo": map[string]interface{}{
+			"signingAlg":     "RS256",
+			"encryptionAlg":  "RSA-OAEP-256",
+			"encryptionEnc":  "A256GCM",
+			"userAttributes": []string{"email", "given_name"},
+		},
+		"certificate": map[string]interface{}{
+			"type":  "JWKS",
+			"value": jwksJSON,
+		},
+		"scopeClaims": map[string][]string{
+			"profile": {"given_name"},
+			"email":   {"email"},
+		},
+	}
+
+	appID := ts.createApplicationWithConfig("UserInfoNestedJWTTestApp", config)
+	defer ts.deleteApplication(appID)
+
+	accessToken, err := ts.getAuthorizationCodeTokenWithClient(
+		"openid profile email",
+		"userinfo_nested_jwt_test_client",
+		"userinfo_nested_jwt_test_secret",
+	)
+	ts.Require().NoError(err)
+
+	resp, err := ts.callUserInfo(accessToken)
+	ts.Require().NoError(err)
+	defer resp.Body.Close()
+
+	assert.Equal(ts.T(), http.StatusOK, resp.StatusCode)
+	assert.Equal(ts.T(), "application/jose", resp.Header.Get("Content-Type"))
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(bodyBytes)
+
+	// A Nested JWT is a JWE compact serialisation — exactly 5 dot-separated parts.
+	parts := strings.Split(string(bodyBytes), ".")
+	assert.Equal(ts.T(), 5, len(parts), "Nested JWT response must have 5 dot-separated parts")
 }

@@ -17,7 +17,7 @@
  */
 
 import {useAsgardeo} from '@asgardeo/react';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import {renderHook, waitFor, act} from '@thunder/test-utils';
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import FlowQueryKeys from '../../constants/flow-query-keys';
@@ -29,8 +29,8 @@ vi.mock('@asgardeo/react', () => ({
   useAsgardeo: vi.fn(),
 }));
 
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useConfig: vi.fn(),
@@ -107,7 +107,7 @@ describe('useCreateFlow', () => {
       url: 'https://localhost:8090/flows',
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      data: JSON.stringify(mockCreateRequest),
+      data: mockCreateRequest,
     });
   });
 
@@ -265,8 +265,8 @@ describe('useCreateFlow', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    const callArgs = mockHttpRequest.mock.calls[0][0] as {data: string; headers: Record<string, string>};
-    expect(callArgs.data).toBe(JSON.stringify(mockCreateRequest));
+    const callArgs = mockHttpRequest.mock.calls[0][0] as {data: CreateFlowRequest; headers: Record<string, string>};
+    expect(callArgs.data).toEqual(mockCreateRequest);
     expect(callArgs.headers['Content-Type']).toBe('application/json');
   });
 });

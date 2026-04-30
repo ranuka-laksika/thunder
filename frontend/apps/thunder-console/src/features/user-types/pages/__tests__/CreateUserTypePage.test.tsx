@@ -54,26 +54,17 @@ vi.mock('../../api/useCreateUserType', () => ({
   default: () => mockUseCreateUserType(),
 }));
 
-// Mock useGetOrganizationUnits (used by ConfigureGeneral for auto-selecting the first OU)
-vi.mock('../../../organization-units/api/useGetOrganizationUnits', () => ({
-  default: () => ({
-    data: {
-      totalResults: 2,
-      startIndex: 1,
-      count: 2,
-      organizationUnits: [
-        {id: 'root-ou', name: 'Root Organization', handle: 'root', description: null, parent: null},
-        {id: 'child-ou', name: 'Child Organization', handle: 'child', description: null, parent: 'root-ou'},
-      ],
-    },
+// Mock useHasMultipleOUs (used by ConfigureGeneral to decide whether to show the OU picker)
+vi.mock('@thunder/configure-organization-units', () => ({
+  useHasMultipleOUs: () => ({
+    hasMultipleOUs: true,
     isLoading: false,
-    error: null,
+    ouList: [
+      {id: 'root-ou', name: 'Root Organization', handle: 'root', description: null, parent: null},
+      {id: 'child-ou', name: 'Child Organization', handle: 'child', description: null, parent: 'root-ou'},
+    ],
   }),
-}));
-
-// Mock OrganizationUnitTreePicker
-vi.mock('../../../organization-units/components/OrganizationUnitTreePicker', () => ({
-  default: ({value, onChange}: {value: string; onChange: (id: string) => void}) => (
+  OrganizationUnitTreePicker: ({value, onChange}: {value: string; onChange: (id: string) => void}) => (
     <div data-testid="ou-tree-picker">
       <span data-testid="ou-value">{value}</span>
       <button type="button" data-testid="select-ou" onClick={() => onChange('ou-123')}>

@@ -21,11 +21,16 @@ package granthandlers
 import (
 	"net/http"
 
-	"github.com/asgardeo/thunder/internal/application"
 	"github.com/asgardeo/thunder/internal/attributecache"
+	"github.com/asgardeo/thunder/internal/authz"
+	"github.com/asgardeo/thunder/internal/entityprovider"
 	"github.com/asgardeo/thunder/internal/flow/flowexec"
-	"github.com/asgardeo/thunder/internal/oauth/oauth2/authz"
+	"github.com/asgardeo/thunder/internal/inboundclient"
+	oauth2authz "github.com/asgardeo/thunder/internal/oauth/oauth2/authz"
+	"github.com/asgardeo/thunder/internal/oauth/oauth2/par"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/tokenservice"
+	"github.com/asgardeo/thunder/internal/ou"
+	"github.com/asgardeo/thunder/internal/resource"
 	"github.com/asgardeo/thunder/internal/system/jose/jwt"
 )
 
@@ -33,17 +38,33 @@ import (
 func Initialize(
 	mux *http.ServeMux,
 	jwtService jwt.JWTServiceInterface,
-	applicationService application.ApplicationServiceInterface,
+	inboundClient inboundclient.InboundClientServiceInterface,
 	flowExecService flowexec.FlowExecServiceInterface,
 	tokenBuilder tokenservice.TokenBuilderInterface,
 	tokenValidator tokenservice.TokenValidatorInterface,
 	attrCacheService attributecache.AttributeCacheServiceInterface,
+	ouService ou.OrganizationUnitServiceInterface,
+	authzService authz.AuthorizationServiceInterface,
+	entityProv entityprovider.EntityProviderInterface,
+	resourceService resource.ResourceServiceInterface,
+	parService par.PARServiceInterface,
 ) (GrantHandlerProviderInterface, error) {
-	authzService, err := authz.Initialize(mux, applicationService, jwtService, flowExecService)
+	oauthAuthzService, err := oauth2authz.Initialize(
+		mux, inboundClient, resourceService, jwtService, flowExecService, parService,
+	)
 	if err != nil {
 		return nil, err
 	}
 	grantHandlerProvider := newGrantHandlerProvider(
-		jwtService, authzService, tokenBuilder, tokenValidator, attrCacheService)
+		jwtService,
+		oauthAuthzService,
+		tokenBuilder,
+		tokenValidator,
+		attrCacheService,
+		ouService,
+		authzService,
+		entityProv,
+		resourceService,
+	)
 	return grantHandlerProvider, nil
 }

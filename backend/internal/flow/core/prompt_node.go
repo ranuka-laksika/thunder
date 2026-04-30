@@ -31,14 +31,21 @@ type PromptNodeInterface interface {
 	SetPrompts(prompts []common.Prompt)
 	GetMeta() interface{}
 	SetMeta(meta interface{})
+	GetNextNode() string
+	SetNextNode(nextNode string)
+	GetMessage() string
+	SetMessage(message string)
+	IsDisplayOnly() bool
 }
 
 // promptNode represents a node that prompts for user input/ action in the flow execution.
 type promptNode struct {
 	*node
-	prompts []common.Prompt
-	meta    interface{}
-	logger  *log.Logger
+	prompts  []common.Prompt
+	meta     interface{}
+	nextNode string
+	message  string
+	logger   *log.Logger
 }
 
 // newPromptNode creates a new instance of PromptNode with the given details.
@@ -62,7 +69,7 @@ func newPromptNode(id string, properties map[string]interface{},
 
 // Execute executes the prompt node logic based on the current context.
 func (n *promptNode) Execute(ctx *NodeContext) (*common.NodeResponse, *serviceerror.ServiceError) {
-	logger := n.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := n.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	logger.Debug("Executing prompt node")
 
 	nodeResp := &common.NodeResponse{
@@ -86,6 +93,26 @@ func (n *promptNode) Execute(ctx *NodeContext) (*common.NodeResponse, *serviceer
 		}
 	}
 
+	// Check if this is a display-only prompt node
+	if n.IsDisplayOnly() {
+		logger.Debug("Display-only prompt node, returning display content")
+
+		if ctx.Verbose && n.GetMeta() != nil {
+			nodeResp.Meta = n.GetMeta()
+		}
+
+		if n.message != "" {
+			if nodeResp.AdditionalData == nil {
+				nodeResp.AdditionalData = make(map[string]string)
+			}
+			nodeResp.AdditionalData[common.DataPromptMessage] = n.message
+		}
+
+		nodeResp.Status = common.NodeStatusComplete
+		nodeResp.Type = common.NodeResponseTypeView
+		return nodeResp, nil
+	}
+
 	if n.resolvePromptInputs(ctx, nodeResp) {
 		logger.Debug("All required inputs and action are available, returning complete status")
 
@@ -100,6 +127,14 @@ func (n *promptNode) Execute(ctx *NodeContext) (*common.NodeResponse, *serviceer
 			}
 		}
 
+		// Forward the action type to the next node
+		if actionType := n.getActionTypeForRef(ctx.CurrentAction); actionType != "" {
+			if nodeResp.ForwardedData == nil {
+				nodeResp.ForwardedData = make(map[string]interface{})
+			}
+			nodeResp.ForwardedData[common.ForwardedDataKeyActionType] = actionType
+		}
+
 		nodeResp.Status = common.NodeStatusComplete
 		nodeResp.Type = ""
 		return nodeResp, nil
@@ -111,7 +146,7 @@ func (n *promptNode) Execute(ctx *NodeContext) (*common.NodeResponse, *serviceer
 
 	// Include meta in the response if verbose mode is enabled
 	if ctx.Verbose && n.GetMeta() != nil {
-		nodeResp.Meta = n.GetMeta()
+		nodeResp.Meta = n.trimMetaToRequestedInputs(nodeResp.Inputs, nodeResp.Actions)
 	}
 
 	nodeResp.Status = common.NodeStatusIncomplete
@@ -137,6 +172,32 @@ func (n *promptNode) GetMeta() interface{} {
 // SetMeta sets the meta object for the prompt node
 func (n *promptNode) SetMeta(meta interface{}) {
 	n.meta = meta
+}
+
+// GetNextNode returns the next node ID for display-only prompt nodes.
+func (n *promptNode) GetNextNode() string {
+	return n.nextNode
+}
+
+// SetNextNode sets the next node ID for display-only prompt nodes.
+func (n *promptNode) SetNextNode(nextNode string) {
+	n.nextNode = nextNode
+}
+
+// GetMessage returns the display message for display-only prompt nodes.
+func (n *promptNode) GetMessage() string {
+	return n.message
+}
+
+// SetMessage sets the display message for display-only prompt nodes.
+func (n *promptNode) SetMessage(message string) {
+	n.message = message
+}
+
+// IsDisplayOnly returns true if this is a display-only prompt node.
+// A prompt node is considered display-only if it has a next node, but no prompts (inputs or actions).
+func (n *promptNode) IsDisplayOnly() bool {
+	return n.nextNode != "" && len(n.prompts) == 0
 }
 
 // resolvePromptInputs resolves the inputs and actions for the prompt node.
@@ -166,7 +227,7 @@ func (n *promptNode) resolvePromptInputs(ctx *NodeContext, nodeResp *common.Node
 // hasRequiredInputs checks if all required inputs are available in the context. Adds missing
 // inputs to the node response. Returns true if all required inputs are available, otherwise false.
 func (n *promptNode) hasRequiredInputs(ctx *NodeContext, nodeResp *common.NodeResponse) bool {
-	logger := n.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := n.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	if nodeResp.Inputs == nil {
 		nodeResp.Inputs = make([]common.Input, 0)
@@ -194,11 +255,23 @@ func (n *promptNode) hasRequiredInputs(ctx *NodeContext, nodeResp *common.NodeRe
 // Returns true if any required data is found missing, otherwise false.
 func (n *promptNode) appendMissingInputs(ctx *NodeContext, nodeResp *common.NodeResponse,
 	requiredInputs []common.Input) bool {
-	logger := log.GetLogger().With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := log.GetLogger().With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	requireInputs := false
 	for _, input := range requiredInputs {
 		if _, ok := ctx.UserInputs[input.Identifier]; !ok {
+			if _, ok := ctx.RuntimeData[input.Identifier]; ok {
+				logger.Debug("Input available in runtime data, skipping",
+					log.String("identifier", input.Identifier), log.Bool("isRequired", input.Required))
+				continue
+			}
+			if value, ok := ctx.ForwardedData[input.Identifier]; ok {
+				if _, isString := value.(string); isString {
+					logger.Debug("Input available in forwarded data, skipping",
+						log.String("identifier", input.Identifier), log.Bool("isRequired", input.Required))
+					continue
+				}
+			}
 			if input.Required {
 				requireInputs = true
 			}
@@ -240,8 +313,9 @@ func (n *promptNode) enrichInputsFromForwardedData(ctx *NodeContext, nodeResp *c
 	// Enrich each prompt input with data from matching forwarded input
 	for i := range nodeResp.Inputs {
 		if fwdInput, found := forwardedInputMap[nodeResp.Inputs[i].Identifier]; found {
-			// Only enrich Options - do not overwrite other fields like Ref, Type, Required
-			if len(fwdInput.Options) > 0 {
+			// Only enrich Options for SELECT-type inputs to avoid leaking
+			// candidate attribute values in free-text input responses.
+			if len(fwdInput.Options) > 0 && nodeResp.Inputs[i].Type == "SELECT" {
 				nodeResp.Inputs[i].Options = fwdInput.Options
 				n.logger.Debug("Enriched input with options from ForwardedData",
 					log.String("identifier", nodeResp.Inputs[i].Identifier),
@@ -287,7 +361,7 @@ func (n *promptNode) tryAutoSelectSingleAction(ctx *NodeContext) bool {
 	// Skip auto-select for confirmation prompts (no inputs) - they should wait for explicit action
 	if len(actions) == 1 && ctx.CurrentAction == "" && len(allInputs) > 0 {
 		ctx.CurrentAction = actions[0].Ref
-		n.logger.Debug("Auto-selected single action", log.String(log.LoggerKeyFlowID, ctx.FlowID),
+		n.logger.Debug("Auto-selected single action", log.String(log.LoggerKeyExecutionID, ctx.ExecutionID),
 			log.String("actionRef", actions[0].Ref))
 		return true
 	}
@@ -332,4 +406,96 @@ func (n *promptNode) getNextNodeForActionRef(actionRef string, logger *log.Logge
 		}
 	}
 	return ""
+}
+
+// getActionTypeForRef finds the action type for the given action reference.
+func (n *promptNode) getActionTypeForRef(actionRef string) string {
+	for _, prompt := range n.prompts {
+		if prompt.Action != nil && prompt.Action.Ref == actionRef {
+			return prompt.Action.Type
+		}
+	}
+	return ""
+}
+
+// trimMetaToRequestedInputs returns a copy of n.meta with the "components" list trimmed to only
+// include components matching the given inputs and actions (plus structural components like TEXT
+// and BLOCK containers that are not themselves inputs or actions).
+func (n *promptNode) trimMetaToRequestedInputs(inputs []common.Input, actions []common.Action) interface{} {
+	metaMap, ok := n.meta.(map[string]interface{})
+	if !ok {
+		return n.meta
+	}
+
+	allowedRefs := make(map[string]struct{})
+	for _, input := range inputs {
+		if input.Ref != "" {
+			allowedRefs[input.Ref] = struct{}{}
+		}
+	}
+	for _, action := range actions {
+		if action.Ref != "" {
+			allowedRefs[action.Ref] = struct{}{}
+		}
+	}
+
+	knownInputActionRefs := make(map[string]struct{})
+	for _, input := range n.getAllInputs() {
+		if input.Ref != "" {
+			knownInputActionRefs[input.Ref] = struct{}{}
+		}
+	}
+	for _, action := range n.getAllActions() {
+		if action.Ref != "" {
+			knownInputActionRefs[action.Ref] = struct{}{}
+		}
+	}
+
+	trimmed := make(map[string]interface{}, len(metaMap))
+	for k, v := range metaMap {
+		trimmed[k] = v
+	}
+	if comps, ok := metaMap["components"]; ok {
+		if compSlice, ok := comps.([]interface{}); ok {
+			trimmed["components"] = filterMetaComponents(compSlice, allowedRefs, knownInputActionRefs)
+		}
+	}
+	return trimmed
+}
+
+// filterMetaComponents filters a meta components slice, dropping satisfied input/action components
+// while keeping structural components (TEXT, BLOCK containers, etc.) and recursively trimming
+// their children.
+func filterMetaComponents(comps []interface{}, allowedRefs, knownInputActionRefs map[string]struct{}) []interface{} {
+	result := make([]interface{}, 0, len(comps))
+	for _, comp := range comps {
+		compMap, ok := comp.(map[string]interface{})
+		if !ok {
+			result = append(result, comp)
+			continue
+		}
+
+		id, _ := compMap["id"].(string)
+		if _, isKnown := knownInputActionRefs[id]; isKnown {
+			if _, isAllowed := allowedRefs[id]; isAllowed {
+				result = append(result, comp)
+			}
+			continue
+		}
+
+		// Structural component — always keep; recurse into children if present.
+		if childComps, hasChildren := compMap["components"]; hasChildren {
+			if childSlice, ok := childComps.([]interface{}); ok {
+				trimmedComp := make(map[string]interface{}, len(compMap))
+				for k, v := range compMap {
+					trimmedComp[k] = v
+				}
+				trimmedComp["components"] = filterMetaComponents(childSlice, allowedRefs, knownInputActionRefs)
+				result = append(result, trimmedComp)
+				continue
+			}
+		}
+		result = append(result, comp)
+	}
+	return result
 }

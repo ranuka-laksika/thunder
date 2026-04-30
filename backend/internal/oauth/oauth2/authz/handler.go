@@ -65,6 +65,7 @@ func (ah *authorizeHandler) HandleAuthorizeGetRequest(w http.ResponseWriter, r *
 			queryParams := map[string]string{
 				oauth2const.RequestParamError:            authErr.Code,
 				oauth2const.RequestParamErrorDescription: authErr.Message,
+				oauth2const.RequestParamIss:              config.GetThunderRuntime().Config.JWT.Issuer,
 			}
 			if authErr.State != "" {
 				queryParams[oauth2const.RequestParamState] = authErr.State
@@ -142,6 +143,7 @@ func (ah *authorizeHandler) getOAuthMessage(r *http.Request, w http.ResponseWrit
 	}
 
 	if err != nil {
+		ah.logger.Debug("Invalid authorize request", log.Error(err))
 		utils.WriteJSONError(w, oauth2const.ErrorInvalidRequest, "Invalid authorization request",
 			http.StatusBadRequest, nil)
 	}
@@ -150,21 +152,34 @@ func (ah *authorizeHandler) getOAuthMessage(r *http.Request, w http.ResponseWrit
 }
 
 // getOAuthMessageForGetRequest extracts the OAuth message from an authorization GET request.
+// Only the resource parameter is permitted to be repeated (RFC 8707 §2). Any other parameter
+// appearing more than once is rejected with invalid_request per RFC 6749 §3.1.
 func (ah *authorizeHandler) getOAuthMessageForGetRequest(r *http.Request) (*OAuthMessage, error) {
 	if err := r.ParseForm(); err != nil {
 		return nil, fmt.Errorf("failed to parse form data: %w", err)
 	}
 
 	queryParams := make(map[string]string)
+	var resources []string
 	for key, values := range r.URL.Query() {
-		if len(values) > 0 {
-			queryParams[key] = values[0]
+		if len(values) == 0 {
+			continue
 		}
+		if key == oauth2const.RequestParamResource {
+			resources = values
+			queryParams[key] = values[0]
+			continue
+		}
+		if len(values) > 1 {
+			return nil, fmt.Errorf("query parameter %q must not be repeated", key)
+		}
+		queryParams[key] = values[0]
 	}
 
 	return &OAuthMessage{
 		RequestType:        oauth2const.TypeInitialAuthorizationRequest,
 		RequestQueryParams: queryParams,
+		Resources:          resources,
 	}, nil
 }
 
@@ -298,6 +313,7 @@ func (ah *authorizeHandler) writeAuthZResponseToClientRedirect(w http.ResponseWr
 	queryParams := map[string]string{
 		oauth2const.RequestParamError:            authErr.Code,
 		oauth2const.RequestParamErrorDescription: authErr.Message,
+		oauth2const.RequestParamIss:              config.GetThunderRuntime().Config.JWT.Issuer,
 	}
 	if authErr.State != "" {
 		queryParams[oauth2const.RequestParamState] = authErr.State

@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
-	appmodel "github.com/asgardeo/thunder/internal/application/model"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/constants"
 	serverconst "github.com/asgardeo/thunder/internal/system/constants"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
@@ -71,11 +71,16 @@ func (h *userInfoHandler) HandleUserInfo(w http.ResponseWriter, r *http.Request)
 	w.Header().Set(serverconst.CacheControlHeaderName, serverconst.CacheControlNoStore)
 	w.Header().Set(serverconst.PragmaHeaderName, serverconst.PragmaNoCache)
 
-	if result.Type == appmodel.UserInfoResponseTypeJWS {
+	switch result.Type {
+	case inboundmodel.UserInfoResponseTypeJWS:
 		w.Header().Set(serverconst.ContentTypeHeaderName, serverconst.ContentTypeJWT)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(result.JWTBody))
-	} else {
+	case inboundmodel.UserInfoResponseTypeJWE, inboundmodel.UserInfoResponseTypeNESTEDJWT:
+		w.Header().Set(serverconst.ContentTypeHeaderName, serverconst.ContentTypeJOSE)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(result.JWTBody))
+	default:
 		utils.WriteSuccessResponse(w, http.StatusOK, result.JSONBody)
 	}
 
@@ -100,9 +105,10 @@ func (h *userInfoHandler) writeServiceErrorResponse(w http.ResponseWriter, svcEr
 	}
 
 	if statusCode == http.StatusInternalServerError {
-		utils.WriteJSONError(w, constants.ErrorServerError, serviceerror.InternalServerError.Error, statusCode, nil)
+		utils.WriteJSONError(w, constants.ErrorServerError,
+			serviceerror.InternalServerError.Error.DefaultValue, statusCode, nil)
 	} else {
-		writeBearerError(w, svcErr.Code, svcErr.ErrorDescription, statusCode)
+		writeBearerError(w, svcErr.Code, svcErr.ErrorDescription.DefaultValue, statusCode)
 	}
 }
 

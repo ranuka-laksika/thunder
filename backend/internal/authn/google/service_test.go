@@ -19,6 +19,8 @@
 package google
 
 import (
+	"github.com/asgardeo/thunder/internal/system/i18n/core"
+
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -32,10 +34,10 @@ import (
 
 	"github.com/asgardeo/thunder/internal/authn/oauth"
 	"github.com/asgardeo/thunder/internal/authn/oidc"
+	"github.com/asgardeo/thunder/internal/entityprovider"
 	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	"github.com/asgardeo/thunder/internal/system/log"
-	"github.com/asgardeo/thunder/internal/userprovider"
 	"github.com/asgardeo/thunder/tests/mocks/authn/oidcmock"
 	"github.com/asgardeo/thunder/tests/mocks/jose/jwtmock"
 )
@@ -482,10 +484,16 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDTokenWithFailure() {
 					Return(config, nil).Once()
 				suite.mockJWTService.On("VerifyJWTSignatureWithJWKS", idToken, config.OAuthEndpoints.JwksEndpoint).
 					Return(&serviceerror.ServiceError{
-						Type:             serviceerror.ServerErrorType,
-						Code:             "SIGNATURE_VERIFICATION_FAILED",
-						Error:            "Signature verification failed",
-						ErrorDescription: "signature verification failed",
+						Type: serviceerror.ServerErrorType,
+						Code: "SIGNATURE_VERIFICATION_FAILED",
+						Error: core.I18nMessage{
+							Key:          "error.test.signature_verification_failed",
+							DefaultValue: "Signature verification failed",
+						},
+						ErrorDescription: core.I18nMessage{
+							Key:          "error.test.signature_verification_failed",
+							DefaultValue: "signature verification failed",
+						},
 					}).Once()
 			},
 		},
@@ -747,7 +755,7 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDTokenWithFailure() {
 			suite.NotNil(err)
 			suite.Equal(tc.expectedErrorCode, err.Code)
 			if tc.expectedErrContains != "" {
-				suite.Contains(err.ErrorDescription, tc.expectedErrContains)
+				suite.Contains(err.ErrorDescription.DefaultValue, tc.expectedErrContains)
 			}
 		})
 	}
@@ -785,16 +793,16 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestFetchUserInfoSuccess() {
 
 func (suite *GoogleOIDCAuthnServiceTestSuite) TestGetInternalUserSuccess() {
 	sub := "user123"
-	user := &userprovider.User{
-		UserID:   "user123",
-		UserType: "person",
+	user := &entityprovider.Entity{
+		ID:   "user123",
+		Type: "person",
 	}
 	suite.mockOIDCService.On("GetInternalUser", sub).Return(user, nil)
 
 	result, err := suite.service.GetInternalUser(sub)
 	suite.Nil(err)
 	suite.NotNil(result)
-	suite.Equal(user.UserID, result.UserID)
+	suite.Equal(user.ID, result.ID)
 }
 
 // generateTestJWT creates a valid JWT token with the specified claims.
@@ -865,7 +873,7 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_Expired
 	err := suite.service.ValidateIDToken(context.Background(), testGoogleIDPID, idToken)
 	suite.NotNil(err)
 	suite.Equal(oidc.ErrorInvalidIDToken.Code, err.Code)
-	suite.Contains(err.ErrorDescription, "expired")
+	suite.Contains(err.ErrorDescription.DefaultValue, "expired")
 }
 
 func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_IssuedInFutureWithinLeeway_ShouldPass() {
@@ -915,7 +923,7 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_IssuedI
 	err := suite.service.ValidateIDToken(context.Background(), testGoogleIDPID, idToken)
 	suite.NotNil(err)
 	suite.Equal(oidc.ErrorInvalidIDToken.Code, err.Code)
-	suite.Contains(err.ErrorDescription, "future")
+	suite.Contains(err.ErrorDescription.DefaultValue, "future")
 }
 
 func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_ZeroLeeway_ExpiredShouldFail() {
@@ -950,7 +958,7 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_ZeroLee
 	err := suite.service.ValidateIDToken(context.Background(), testGoogleIDPID, idToken)
 	suite.NotNil(err)
 	suite.Equal(oidc.ErrorInvalidIDToken.Code, err.Code)
-	suite.Contains(err.ErrorDescription, "expired")
+	suite.Contains(err.ErrorDescription.DefaultValue, "expired")
 }
 
 func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_IatExactlyAtBoundary_ShouldPass() {
@@ -1022,5 +1030,5 @@ func (suite *GoogleOIDCAuthnServiceTestSuite) TestValidateIDToken_Leeway_IatJust
 	err := suite.service.ValidateIDToken(context.Background(), testGoogleIDPID, idToken)
 	suite.NotNil(err)
 	suite.Equal(oidc.ErrorInvalidIDToken.Code, err.Code)
-	suite.Contains(err.ErrorDescription, "future")
+	suite.Contains(err.ErrorDescription.DefaultValue, "future")
 }

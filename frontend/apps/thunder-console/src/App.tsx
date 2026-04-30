@@ -17,7 +17,26 @@
  */
 
 import {ProtectedRoute} from '@asgardeo/react-router';
-import {ToastProvider} from '@thunder/shared-contexts';
+import {
+  CreateOrganizationUnitPage,
+  OrganizationUnitProvider,
+  OrganizationUnitEditPage,
+  OrganizationUnitsListPage,
+} from '@thunder/configure-organization-units';
+import {
+  TranslationCreateProvider,
+  TranslationCreatePage,
+  TranslationsEditPage,
+  TranslationsListPage,
+} from '@thunder/configure-translations';
+import {
+  UserCreateProvider,
+  UserCreatePage,
+  UserEditPage,
+  UserInvitePage,
+  UsersListPage,
+} from '@thunder/configure-users';
+import {ToastProvider} from '@thunder/contexts';
 import type {JSX} from 'react';
 import {BrowserRouter, Route, Routes} from 'react-router';
 import ApplicationCreateProvider from './features/applications/contexts/ApplicationCreate/ApplicationCreateProvider';
@@ -30,6 +49,7 @@ import DesignPage from './features/design/pages/DesignPage';
 import LayoutBuilderPage from './features/design/pages/LayoutBuilderPage';
 import ThemeBuilderPage from './features/design/pages/ThemeBuilderPage';
 import ThemeCreatePage from './features/design/pages/ThemeCreatePage';
+import FlowCreatePage from './features/flows/pages/FlowCreatePage';
 import FlowsListPage from './features/flows/pages/FlowsListPage';
 import GroupCreateProvider from './features/groups/contexts/GroupCreate/GroupCreateProvider';
 import CreateGroupPage from './features/groups/pages/CreateGroupPage';
@@ -38,27 +58,14 @@ import GroupsListPage from './features/groups/pages/GroupsListPage';
 import HomePage from './features/home/pages/HomePage';
 import IntegrationsPage from './features/integrations/pages/IntegrationsPage';
 import LoginFlowBuilderPage from './features/login-flow/pages/LoginFlowPage';
-import OrganizationUnitProvider from './features/organization-units/contexts/OrganizationUnitProvider';
-import CreateOrganizationUnitPage from './features/organization-units/pages/CreateOrganizationUnitPage';
-import OrganizationUnitEditPage from './features/organization-units/pages/OrganizationUnitEditPage';
-import OrganizationUnitsListPage from './features/organization-units/pages/OrganizationUnitsListPage';
 import RoleCreateProvider from './features/roles/contexts/RoleCreate/RoleCreateProvider';
 import CreateRolePage from './features/roles/pages/CreateRolePage';
 import RoleEditPage from './features/roles/pages/RoleEditPage';
 import RolesListPage from './features/roles/pages/RolesListPage';
-import TranslationCreateProvider from './features/translations/contexts/TranslationCreate/TranslationCreateProvider';
-import TranslationCreatePage from './features/translations/pages/TranslationCreatePage';
-import TranslationsEditPage from './features/translations/pages/TranslationsEditPage';
-import TranslationsListPage from './features/translations/pages/TranslationsListPage';
 import UserTypeCreateProvider from './features/user-types/contexts/UserTypeCreate/UserTypeCreateProvider';
 import CreateUserTypePage from './features/user-types/pages/CreateUserTypePage';
 import UserTypesListPage from './features/user-types/pages/UserTypesListPage';
 import ViewUserTypePage from './features/user-types/pages/ViewUserTypePage';
-import UserCreateProvider from './features/users/contexts/UserCreate/UserCreateProvider';
-import UserCreatePage from './features/users/pages/UserCreatePage';
-import UserEditPage from './features/users/pages/UserEditPage';
-import UserInvitePage from './features/users/pages/UserInvitePage';
-import UsersListPage from './features/users/pages/UsersListPage';
 import DashboardLayout from './layouts/DashboardLayout';
 import FullScreenLayout from './layouts/FullScreenLayout';
 
@@ -176,6 +183,16 @@ export default function App(): JSX.Element {
             }
           >
             <Route index element={<ApplicationCreatePage />} />
+          </Route>
+          <Route
+            path="/flows/create"
+            element={
+              <ProtectedRoute>
+                <FullScreenLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<FlowCreatePage />} />
           </Route>
           <Route
             path="/flows/signin"

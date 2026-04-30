@@ -16,11 +16,12 @@
  * under the License.
  */
 
-import {Divider, FormHelperText, FormLabel, Stack, TextField} from '@wso2/oxygen-ui';
+import {Divider, FormHelperText, FormLabel, MenuItem, Select, Stack, TextField} from '@wso2/oxygen-ui';
 import {useState, type ReactNode, type ChangeEvent} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {CommonResourcePropertiesPropsInterface} from '@/features/flows/components/resource-property-panel/ResourceProperties';
 import type {Element} from '@/features/flows/models/elements';
+import {ActionEventTypes} from '@/features/flows/models/elements';
 
 /**
  * Props interface of {@link ButtonExtendedProperties}
@@ -37,7 +38,9 @@ export type ButtonExtendedPropertiesPropsInterface = CommonResourcePropertiesPro
 function ButtonExtendedProperties({resource, onChange}: ButtonExtendedPropertiesPropsInterface): ReactNode {
   const {t} = useTranslation();
 
-  // Use local state for immediate input feedback
+  const eventTypeValue = (resource as Element & {eventType?: string})?.eventType ?? ActionEventTypes.Trigger;
+
+  // Use local state for text inputs — provides immediate keystroke feedback while onChange is debounced
   const [startIconValue, setStartIconValue] = useState(() => {
     const element = resource as Element & {startIcon?: string};
     return element?.startIcon ?? '';
@@ -57,21 +60,35 @@ function ButtonExtendedProperties({resource, onChange}: ButtonExtendedProperties
     setEndIconValue(element?.endIcon ?? '');
   }
 
-  // Handle startIcon change - update local state immediately, propagate via onChange
+  // Handle startIcon change - update local state immediately, propagate via onChange (debounced)
   const handleStartIconChange = (value: string): void => {
     setStartIconValue(value);
-    onChange('startIcon', value, resource);
+    onChange('startIcon', value, resource, true);
   };
 
-  // Handle endIcon change - update local state immediately, propagate via onChange
+  // Handle endIcon change - update local state immediately, propagate via onChange (debounced)
   const handleEndIconChange = (value: string): void => {
     setEndIconValue(value);
-    onChange('endIcon', value, resource);
+    onChange('endIcon', value, resource, true);
   };
 
   return (
     <Stack gap={2}>
       <Divider sx={{marginY: 2}} />
+
+      <div>
+        <FormLabel htmlFor="event-type-select">{t('flows:core.buttonExtendedProperties.type.label')}</FormLabel>
+        <Select
+          id="event-type-select"
+          value={eventTypeValue}
+          onChange={(e) => onChange('eventType', e.target.value, resource)}
+          fullWidth
+          size="small"
+        >
+          <MenuItem value={ActionEventTypes.Submit}>{t('flows:core.buttonExtendedProperties.type.submit')}</MenuItem>
+          <MenuItem value={ActionEventTypes.Trigger}>{t('flows:core.buttonExtendedProperties.type.trigger')}</MenuItem>
+        </Select>
+      </div>
 
       <div>
         <FormLabel htmlFor="start-icon-input">{t('flows:core.buttonExtendedProperties.startIcon.label')}</FormLabel>

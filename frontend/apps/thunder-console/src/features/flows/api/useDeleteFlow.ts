@@ -18,11 +18,11 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import FlowQueryKeys from '../constants/flow-query-keys';
 
 /**
- * Custom React hook to delete a flow from the Thunder server.
+ * Custom React hook to delete a flow from the server.
  *
  * This hook uses TanStack Query mutations to handle the flow deletion process,
  * providing loading states and error handling. Upon successful deletion, it automatically

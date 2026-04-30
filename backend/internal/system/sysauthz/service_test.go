@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	i18ncore "github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/internal/system/security"
 )
 
@@ -98,7 +99,7 @@ func (s *SystemAuthzTestSuite) TestIsActionAllowed() {
 		overridePolicy authorizationPolicy
 	}{
 		{
-			// Step 1: THUNDER_SKIP_SECURITY flag bypasses all checks.
+			// Step 1: SKIP_SECURITY flag bypasses all checks.
 			name:        "SecuritySkipped_GrantsAccess",
 			ctx:         buildSkipSecurityCtx(),
 			action:      security.ActionReadUser,
@@ -270,7 +271,10 @@ func (s *SystemAuthzTestSuite) TestIsActionAllowed() {
 			wantAllowed: false,
 			wantErr:     true,
 			overridePolicy: &stubPolicy{
-				actionErr: &serviceerror.ServiceError{Code: "ERR-001", Error: "policy failure"},
+				actionErr: &serviceerror.ServiceError{
+					Code:  "ERR-001",
+					Error: i18ncore.I18nMessage{DefaultValue: "policy failure"},
+				},
 			},
 		},
 	}
@@ -310,7 +314,7 @@ func (s *SystemAuthzTestSuite) TestGetAccessibleResources() {
 		overridePolicy authorizationPolicy
 	}{
 		{
-			// Step 1: THUNDER_SKIP_SECURITY flag → all resources accessible.
+			// Step 1: SKIP_SECURITY flag → all resources accessible.
 			name:           "SecuritySkipped_AllAllowed",
 			ctx:            buildSkipSecurityCtx(),
 			action:         security.ActionListUsers,
@@ -395,8 +399,11 @@ func (s *SystemAuthzTestSuite) TestGetAccessibleResources() {
 			resourceType: security.ResourceTypeUser,
 			wantErr:      true,
 			overridePolicy: &stubPolicy{
-				applicable:  true,
-				resourceErr: &serviceerror.ServiceError{Code: "ERR-002", Error: "resource policy error"},
+				applicable: true,
+				resourceErr: &serviceerror.ServiceError{
+					Code:  "ERR-002",
+					Error: i18ncore.I18nMessage{DefaultValue: "resource policy error"},
+				},
 			},
 		},
 	}

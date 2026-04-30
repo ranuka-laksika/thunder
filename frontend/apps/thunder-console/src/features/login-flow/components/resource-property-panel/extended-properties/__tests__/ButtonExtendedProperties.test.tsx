@@ -164,7 +164,7 @@ describe('ButtonExtendedProperties', () => {
       const startIconInput = screen.getByPlaceholderText('flows:core.buttonExtendedProperties.startIcon.placeholder');
       fireEvent.change(startIconInput, {target: {value: '/new/icon/path.svg'}});
 
-      expect(mockOnChange).toHaveBeenCalledWith('startIcon', '/new/icon/path.svg', resource);
+      expect(mockOnChange).toHaveBeenCalledWith('startIcon', '/new/icon/path.svg', resource, true);
     });
 
     it('should call onChange when end icon value changes', () => {
@@ -175,7 +175,7 @@ describe('ButtonExtendedProperties', () => {
       const endIconInput = screen.getByPlaceholderText('flows:core.buttonExtendedProperties.endIcon.placeholder');
       fireEvent.change(endIconInput, {target: {value: '/new/end/icon.svg'}});
 
-      expect(mockOnChange).toHaveBeenCalledWith('endIcon', '/new/end/icon.svg', resource);
+      expect(mockOnChange).toHaveBeenCalledWith('endIcon', '/new/end/icon.svg', resource, true);
     });
 
     it('should call onChange with empty string when clearing start icon', () => {
@@ -188,7 +188,7 @@ describe('ButtonExtendedProperties', () => {
       const startIconInput = screen.getByPlaceholderText('flows:core.buttonExtendedProperties.startIcon.placeholder');
       fireEvent.change(startIconInput, {target: {value: ''}});
 
-      expect(mockOnChange).toHaveBeenCalledWith('startIcon', '', resource);
+      expect(mockOnChange).toHaveBeenCalledWith('startIcon', '', resource, true);
     });
 
     it('should call onChange with empty string when clearing end icon', () => {
@@ -201,7 +201,35 @@ describe('ButtonExtendedProperties', () => {
       const endIconInput = screen.getByPlaceholderText('flows:core.buttonExtendedProperties.endIcon.placeholder');
       fireEvent.change(endIconInput, {target: {value: ''}});
 
-      expect(mockOnChange).toHaveBeenCalledWith('endIcon', '', resource);
+      expect(mockOnChange).toHaveBeenCalledWith('endIcon', '', resource, true);
+    });
+  });
+
+  describe('Event Type', () => {
+    it('should render the event type label', () => {
+      const resource = createMockResource();
+
+      render(<ButtonExtendedProperties resource={resource} onChange={mockOnChange} />);
+
+      expect(screen.getByText('flows:core.buttonExtendedProperties.type.label')).toBeInTheDocument();
+    });
+
+    it('should default to TRIGGER when eventType is not set', () => {
+      const resource = createMockResource();
+
+      const {container} = render(<ButtonExtendedProperties resource={resource} onChange={mockOnChange} />);
+
+      const select = container.querySelector('#event-type-select');
+      expect(select).toHaveTextContent('flows:core.buttonExtendedProperties.type.trigger');
+    });
+
+    it('should display SUBMIT when eventType is SUBMIT', () => {
+      const resource = createMockResource({eventType: 'SUBMIT'} as Partial<Resource>);
+
+      const {container} = render(<ButtonExtendedProperties resource={resource} onChange={mockOnChange} />);
+
+      const select = container.querySelector('#event-type-select');
+      expect(select).toHaveTextContent('flows:core.buttonExtendedProperties.type.submit');
     });
   });
 

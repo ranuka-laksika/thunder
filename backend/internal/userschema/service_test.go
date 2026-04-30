@@ -103,7 +103,7 @@ func TestCreateUserSchemaReturnsErrorWhenOrganizationUnitMissing(t *testing.T) {
 		transactioner:   &mockTransactioner{},
 	}
 
-	request := CreateUserSchemaRequest{
+	request := CreateUserSchemaRequestWithID{
 		Name:   "test-schema",
 		OUID:   ouID,
 		Schema: json.RawMessage(`{"email":{"type":"string"}}`),
@@ -114,7 +114,7 @@ func TestCreateUserSchemaReturnsErrorWhenOrganizationUnitMissing(t *testing.T) {
 	require.Nil(t, createdSchema)
 	require.NotNil(t, svcErr)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, svcErr.Code)
-	require.Contains(t, svcErr.ErrorDescription, "organization unit id does not exist")
+	require.Contains(t, svcErr.ErrorDescription.DefaultValue, "organization unit id does not exist")
 }
 
 func TestCreateUserSchemaReturnsInternalErrorWhenOUValidationFails(t *testing.T) {
@@ -144,7 +144,7 @@ func TestCreateUserSchemaReturnsInternalErrorWhenOUValidationFails(t *testing.T)
 		transactioner:   &mockTransactioner{},
 	}
 
-	request := CreateUserSchemaRequest{
+	request := CreateUserSchemaRequestWithID{
 		Name:   "test-schema",
 		OUID:   ouID,
 		Schema: json.RawMessage(`{"email":{"type":"string"}}`),
@@ -154,7 +154,7 @@ func TestCreateUserSchemaReturnsInternalErrorWhenOUValidationFails(t *testing.T)
 
 	require.Nil(t, createdSchema)
 	require.NotNil(t, svcErr)
-	require.Equal(t, ErrorInternalServerError, *svcErr)
+	require.Equal(t, serviceerror.InternalServerError, *svcErr)
 }
 
 func TestUpdateUserSchemaReturnsErrorWhenOrganizationUnitMissing(t *testing.T) {
@@ -256,7 +256,7 @@ func TestGetUserSchemaByNameReturnsInternalErrorOnStoreFailure(t *testing.T) {
 
 	require.Nil(t, userSchema)
 	require.NotNil(t, svcErr)
-	require.Equal(t, ErrorInternalServerError, *svcErr)
+	require.Equal(t, serviceerror.InternalServerError, *svcErr)
 }
 
 func TestGetUserSchemaByNameRequiresName(t *testing.T) {
@@ -316,7 +316,7 @@ func TestValidateUserReturnsInternalErrorWhenSchemaLoadFails(t *testing.T) {
 
 	require.False(t, ok)
 	require.NotNil(t, svcErr)
-	require.Equal(t, ErrorInternalServerError, *svcErr)
+	require.Equal(t, serviceerror.InternalServerError, *svcErr)
 }
 
 func TestValidateUserUniquenessReturnsTrueWhenNoConflicts(t *testing.T) {
@@ -338,9 +338,9 @@ func TestValidateUserUniquenessReturnsTrueWhenNoConflicts(t *testing.T) {
 		context.Background(),
 		"employee",
 		json.RawMessage(`{"email":"unique@example.com"}`),
-		func(filters map[string]interface{}) (*string, error) {
+		func(filters map[string]interface{}) (bool, error) {
 			require.Equal(t, map[string]interface{}{"email": "unique@example.com"}, filters)
-			return nil, nil
+			return false, nil
 		},
 	)
 
@@ -388,7 +388,7 @@ func TestValidateUserUniquenessReturnsSchemaNotFoundWhenSchemaMissing(t *testing
 		context.Background(),
 		"employee",
 		json.RawMessage(`{}`),
-		func(map[string]interface{}) (*string, error) { return nil, nil },
+		func(map[string]interface{}) (bool, error) { return false, nil },
 	)
 
 	require.False(t, ok)
@@ -412,12 +412,12 @@ func TestValidateUserUniquenessReturnsInternalErrorWhenSchemaLoadFails(t *testin
 		context.Background(),
 		"employee",
 		json.RawMessage(`{}`),
-		func(map[string]interface{}) (*string, error) { return nil, nil },
+		func(map[string]interface{}) (bool, error) { return false, nil },
 	)
 
 	require.False(t, ok)
 	require.NotNil(t, svcErr)
-	require.Equal(t, ErrorInternalServerError, *svcErr)
+	require.Equal(t, serviceerror.InternalServerError, *svcErr)
 }
 
 func TestValidateUserSchemaDefinitionSuccess(t *testing.T) {
@@ -449,7 +449,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorWhenNameIsEmpty(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "user schema name must not be empty")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "user schema name must not be empty")
 }
 
 func TestValidateUserSchemaDefinitionReturnsErrorWhenOUIDIsEmpty(t *testing.T) {
@@ -465,7 +465,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorWhenOUIDIsEmpty(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "organization unit id must not be empty")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "organization unit id must not be empty")
 }
 
 func TestValidateUserSchemaDefinitionAllowsNonUUIDOUID(t *testing.T) {
@@ -495,7 +495,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorWhenSchemaIsEmpty(t *testing.T)
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "schema definition must not be empty")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "schema definition must not be empty")
 }
 
 func TestValidateUserSchemaDefinitionReturnsErrorWhenSchemaIsNil(t *testing.T) {
@@ -511,7 +511,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorWhenSchemaIsNil(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "schema definition must not be empty")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "schema definition must not be empty")
 }
 
 func TestValidateUserSchemaDefinitionReturnsErrorWhenSchemaCompilationFails(t *testing.T) {
@@ -528,7 +528,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorWhenSchemaCompilationFails(t *t
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "property definition must be an object")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "property definition must be an object")
 }
 
 func TestValidateUserSchemaDefinitionReturnsErrorForInvalidJSON(t *testing.T) {
@@ -561,7 +561,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorForEmptySchemaObject(t *testing
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "schema cannot be empty")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "schema cannot be empty")
 }
 
 func TestValidateUserSchemaDefinitionWithComplexSchema(t *testing.T) {
@@ -619,7 +619,7 @@ func TestValidateUserSchemaDefinitionReturnsErrorForMissingTypeField(t *testing.
 
 	require.NotNil(t, err)
 	require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-	require.Contains(t, err.ErrorDescription, "missing required 'type' field")
+	require.Contains(t, err.ErrorDescription.DefaultValue, "missing required 'type' field")
 }
 
 func TestValidateUserSchemaDefinitionReturnsErrorForInvalidType(t *testing.T) {
@@ -679,7 +679,7 @@ func TestValidateUserSchemaDefinitionWithMultipleValidationErrors(t *testing.T) 
 
 			require.NotNil(t, err)
 			require.Equal(t, ErrorInvalidUserSchemaRequest.Code, err.Code)
-			require.Contains(t, err.ErrorDescription, tc.expectedError)
+			require.Contains(t, err.ErrorDescription.DefaultValue, tc.expectedError)
 		})
 	}
 }
@@ -866,7 +866,7 @@ func (s *GetCredentialAttributesTestSuite) TestStoreError_ReturnsInternalError()
 
 	s.Require().Nil(fields)
 	s.Require().NotNil(svcErr)
-	s.Require().Equal(ErrorInternalServerError, *svcErr)
+	s.Require().Equal(serviceerror.InternalServerError, *svcErr)
 }
 
 type GetUniqueAttributesTestSuite struct {
@@ -1128,7 +1128,7 @@ func TestCreateUserSchemaReturnsErrorForInvalidDisplayAttribute(t *testing.T) {
 		transactioner:   &mockTransactioner{},
 	}
 
-	request := CreateUserSchemaRequest{
+	request := CreateUserSchemaRequestWithID{
 		Name:             "test-schema",
 		OUID:             testOUID1,
 		Schema:           json.RawMessage(`{"email":{"type":"string"}}`),
@@ -1295,5 +1295,5 @@ func (s *GetDisplayAttributesByNamesTestSuite) TestStoreError_ReturnsServerError
 	_, svcErr := service.GetDisplayAttributesByNames(context.Background(), []string{"SchemaA"})
 
 	s.Require().NotNil(svcErr)
-	s.Require().Equal(ErrorInternalServerError, *svcErr)
+	s.Require().Equal(serviceerror.InternalServerError, *svcErr)
 }

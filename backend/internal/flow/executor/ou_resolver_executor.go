@@ -82,7 +82,7 @@ func newOUResolverExecutor(
 //   - "prompt": checks for child OUs and prompts the user to select one if applicable.
 //   - "promptAll": shows the full OU tree from root, independent of UserTypeResolver.
 func (e *ouResolverExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, error) {
-	logger := e.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := e.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	execResp := &common.ExecutorResponse{
 		Status:      common.ExecComplete,
@@ -157,7 +157,7 @@ func (e *ouResolverExecutor) resolveFromPrompt(ctx *core.NodeContext,
 				return execResp, nil
 			}
 
-			return nil, errors.New("failed to validate selected organization unit: " + svcErr.Error)
+			return nil, errors.New("failed to validate selected organization unit: " + svcErr.Error.DefaultValue)
 		}
 		if !isDescendant {
 			logger.Debug("Selected OU is not a descendant of the parent OU",
@@ -177,7 +177,7 @@ func (e *ouResolverExecutor) resolveFromPrompt(ctx *core.NodeContext,
 	// Check if the parent OU has child OUs.
 	children, svcErr := e.ouService.GetOrganizationUnitChildren(ctx.Context, parentOUID, 1, 0)
 	if svcErr != nil {
-		return nil, errors.New("failed to check child organization units: " + svcErr.Error)
+		return nil, errors.New("failed to check child organization units: " + svcErr.Error.DefaultValue)
 	}
 
 	if children.TotalResults == 0 {
@@ -219,7 +219,7 @@ func (e *ouResolverExecutor) resolveFromPromptAll(ctx *core.NodeContext,
 	if selectedOUID, ok := ctx.UserInputs[ouIDKey]; ok && selectedOUID != "" {
 		exists, svcErr := e.ouService.IsOrganizationUnitExists(ctx.Context, selectedOUID)
 		if svcErr != nil {
-			return nil, errors.New("failed to validate selected organization unit: " + svcErr.Error)
+			return nil, errors.New("failed to validate selected organization unit: " + svcErr.Error.DefaultValue)
 		}
 		if !exists {
 			execResp.Status = common.ExecFailure

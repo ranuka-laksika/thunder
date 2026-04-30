@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {useTranslation} from 'react-i18next';
 import UserTypeQueryKeys from '../constants/userTypeQueryKeys';
 import type {ApiUserSchema, UpdateUserSchemaRequest} from '../types/user-types';
@@ -38,7 +38,7 @@ export interface UpdateUserTypeVariables {
 }
 
 /**
- * Custom React hook to update an existing user schema (user type) in the Thunder server.
+ * Custom React hook to update an existing user schema (user type) in the server.
  *
  * @returns TanStack Query mutation object for updating user types
  */
@@ -60,7 +60,7 @@ export default function useUpdateUserType(): UseMutationResult<ApiUserSchema, Er
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify(data),
+        data: data,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

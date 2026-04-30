@@ -28,8 +28,8 @@ vi.mock('@asgardeo/react', () => ({
 }));
 
 const mockGetServerUrl = vi.fn<() => string>(() => 'https://localhost:8090');
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useConfig: () => ({getServerUrl: mockGetServerUrl}),
@@ -67,12 +67,12 @@ describe('useAddGroupMembers', () => {
       expect.objectContaining({
         url: 'https://localhost:8090/groups/g1/members/add',
         method: 'POST',
-        data: JSON.stringify({
+        data: {
           members: [
             {id: 'u1', type: 'user'},
             {id: 'u2', type: 'user'},
           ],
-        }),
+        },
       }),
     );
   });

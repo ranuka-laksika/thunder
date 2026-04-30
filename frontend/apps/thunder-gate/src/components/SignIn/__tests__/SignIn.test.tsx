@@ -31,8 +31,8 @@ vi.mock('../SignInSlogan', () => ({
 
 // Mock useDesign hook
 const mockUseDesign = vi.fn();
-vi.mock('@thunder/shared-design', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-design')>();
+vi.mock('@thunder/design', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/design')>();
   return {
     ...actual,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -45,6 +45,7 @@ describe('SignIn', () => {
     vi.clearAllMocks();
     mockUseDesign.mockReturnValue({
       isDesignEnabled: false,
+      isLoading: false,
     });
   });
 
@@ -58,9 +59,10 @@ describe('SignIn', () => {
     expect(screen.getByTestId('signin-box')).toBeInTheDocument();
   });
 
-  it('shows SignInSlogan when design is not enabled', () => {
+  it('shows SignInSlogan when design is not enabled and not loading', () => {
     mockUseDesign.mockReturnValue({
       isDesignEnabled: false,
+      isLoading: false,
     });
     render(<SignIn />);
     expect(screen.getByTestId('signin-slogan')).toBeInTheDocument();
@@ -69,6 +71,16 @@ describe('SignIn', () => {
   it('hides SignInSlogan when design is enabled', () => {
     mockUseDesign.mockReturnValue({
       isDesignEnabled: true,
+      isLoading: false,
+    });
+    render(<SignIn />);
+    expect(screen.queryByTestId('signin-slogan')).not.toBeInTheDocument();
+  });
+
+  it('hides SignInSlogan while design is loading', () => {
+    mockUseDesign.mockReturnValue({
+      isDesignEnabled: false,
+      isLoading: true,
     });
     render(<SignIn />);
     expect(screen.queryByTestId('signin-slogan')).not.toBeInTheDocument();

@@ -17,7 +17,7 @@
  */
 
 import {useAsgardeo} from '@asgardeo/react';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import {waitFor, act, renderHook} from '@thunder/test-utils';
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import ApplicationQueryKeys from '../../constants/application-query-keys';
@@ -32,8 +32,8 @@ vi.mock('@asgardeo/react', () => ({
   useAsgardeo: vi.fn(),
 }));
 
-vi.mock('@thunder/shared-contexts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@thunder/shared-contexts')>();
+vi.mock('@thunder/contexts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@thunder/contexts')>();
   return {
     ...actual,
     useConfig: vi.fn(),
@@ -193,7 +193,7 @@ describe('useCreateApplication', () => {
       headers: {
         'Content-Type': 'application/json',
       },
-      data: JSON.stringify(mockRequest),
+      data: mockRequest,
     });
   });
 
@@ -446,7 +446,7 @@ describe('useCreateApplication', () => {
       headers: {
         'Content-Type': 'application/json',
       },
-      data: JSON.stringify(mockRequest),
+      data: mockRequest,
     });
   });
 
@@ -466,7 +466,7 @@ describe('useCreateApplication', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const callArgs = mockHttpRequest.mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(callArgs.data).toBe(JSON.stringify(mockRequest));
+    expect(callArgs.data).toEqual(mockRequest);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(callArgs.headers['Content-Type']).toBe('application/json');
   });

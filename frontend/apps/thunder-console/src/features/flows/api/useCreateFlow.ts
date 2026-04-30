@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import FlowQueryKeys from '../constants/flow-query-keys';
 import type {CreateFlowRequest, FlowDefinitionResponse} from '../models/responses';
 
@@ -67,7 +67,7 @@ export default function useCreateFlow(): UseMutationResult<FlowDefinitionRespons
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify(flowData),
+        data: flowData,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

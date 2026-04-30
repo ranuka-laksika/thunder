@@ -17,12 +17,12 @@
  */
 
 /**
- * English (US) translations for Thunder applications
+ * English (US) translations for applications
  * All namespaces organized in a single file for better maintainability
  */
 const translations = {
   // ============================================================================
-  // Common namespace - Shared translations across all Thunder applications
+  // Common namespace - Shared translations across all applications
   // ============================================================================
   common: {
     // Actions
@@ -371,6 +371,10 @@ const translations = {
     'manageUser.title': 'Manage User',
     'manageUser.subtitle': 'View and manage user information',
     'manageUser.back': 'Back to Users',
+    'manageUser.sections.quickCopy.title': 'Quick Copy',
+    'manageUser.sections.quickCopy.description': 'Copy user identifiers for use in your application.',
+    'manageUser.sections.quickCopy.userId': 'User ID',
+    'manageUser.sections.quickCopy.copyUserId': 'Copy User ID',
 
     // Create page
     'createUser.title': 'Create User',
@@ -719,14 +723,18 @@ const translations = {
 
     // Add member dialog
     'addMember.title': 'Add Member',
+    'addMember.tabs.users': 'Users',
+    'addMember.tabs.apps': 'Apps',
     'addMember.search.placeholder': 'Search users...',
     'addMember.noResults': 'No users found',
+    'addMember.noResultsApps': 'No apps found',
     'addMember.add': 'Add Selected',
     'addMember.columns.displayName': 'Display Name',
     'addMember.columns.userType': 'User Type',
     'addMember.columns.userId': 'User ID',
     'addMember.error': 'Failed to add member. Please try again.',
     'addMember.fetchError': 'Failed to load users. Please try again.',
+    'addMember.fetchAppsError': 'Failed to load apps. Please try again.',
     'removeMember.error': 'Failed to remove member. Please try again.',
 
     // Delete dialog
@@ -816,10 +824,11 @@ const translations = {
     'edit.permissions.selectedCount': '{{count}} selected',
 
     // Assignments settings
-    'edit.assignments.sections.manage.title': 'Assigned Users & Groups',
-    'edit.assignments.sections.manage.description': 'Manage users and groups assigned to this role',
+    'edit.assignments.sections.manage.title': 'Assigned Users, Groups & Apps',
+    'edit.assignments.sections.manage.description': 'Manage users, groups, and apps assigned to this role',
     'edit.assignments.sections.manage.tabs.users': 'Users',
     'edit.assignments.sections.manage.tabs.groups': 'Groups',
+    'edit.assignments.sections.manage.tabs.apps': 'Apps',
     'edit.assignments.sections.manage.listing.columns.name': 'Name',
     'edit.assignments.sections.manage.listing.columns.id': 'ID',
     'edit.assignments.sections.manage.listing.columns.type': 'Type',
@@ -829,6 +838,7 @@ const translations = {
     'assignments.dialog.title': 'Add Assignment',
     'assignments.dialog.tabs.users': 'Users',
     'assignments.dialog.tabs.groups': 'Groups',
+    'assignments.dialog.tabs.apps': 'Apps',
     'assignments.dialog.columns.displayName': 'Display Name',
     'assignments.dialog.columns.name': 'Name',
     'assignments.dialog.columns.description': 'Description',
@@ -874,18 +884,6 @@ const translations = {
     noIntegrations: 'No integrations found',
     comingSoon: 'Coming Soon',
     comingSoonDescription: 'Integrations management functionality will be available soon.',
-  },
-
-  // ============================================================================
-  // Dashboard namespace - Dashboard feature translations
-  // ============================================================================
-  dashboard: {
-    welcomeMessage: 'Welcome to Thunder Console',
-    totalUsers: 'Total Users',
-    activeUsers: 'Active Users',
-    totalApplications: 'Total Applications',
-    recentActivity: 'Recent Activity',
-    quickActions: 'Quick Actions',
   },
 
   // ============================================================================
@@ -1023,6 +1021,7 @@ const translations = {
     'onboarding.preview.dividerText': 'or',
     'onboarding.preview.continueWith': 'Continue with {{providerName}}',
     'onboarding.steps.name': 'Create an Application',
+    'onboarding.steps.organizationUnit': 'Organization Unit',
     'onboarding.steps.design': 'Design',
     'onboarding.steps.options': 'Sign In Options',
     'onboarding.steps.experience': 'Sign-In Experience',
@@ -1030,6 +1029,9 @@ const translations = {
     'onboarding.steps.configure': 'Configuration',
     'onboarding.steps.complete': 'Setup Complete',
     'onboarding.steps.summary': 'Summary',
+    'onboarding.organizationUnit.title': 'Select an organization unit',
+    'onboarding.organizationUnit.subtitle': 'Choose the organization unit this application will belong to.',
+    'onboarding.organizationUnit.fieldLabel': 'Organization Unit',
     'onboarding.configure.name.title': "Let's give a name to your application",
     'onboarding.configure.name.fieldLabel': 'Application Name',
     'onboarding.configure.name.placeholder': 'Enter your application name',
@@ -1272,6 +1274,13 @@ const translations = {
       'This is a confidential client (server-side app) that can securely store credentials.',
     'edit.advanced.pkce.enabled': 'PKCE is required for authorization code flow, providing additional security.',
     'edit.advanced.pkce.disabled': 'PKCE is not required. Consider enabling for public clients (SPAs, mobile apps).',
+    'edit.advanced.pkce.requiresAuthorizationCode': 'PKCE applies only to the authorization code flow.',
+    'edit.advanced.pkce.requiredForPublicClient': 'Always required for public clients.',
+    'edit.advanced.publicClient.requiresAuthorizationCode':
+      'Available only for apps using the authorization code flow.',
+    'edit.advanced.publicClient.incompatibleWithClientCredentials': 'Not available for machine-to-machine apps.',
+    'edit.advanced.responseTypes.codeRequiredHint': 'Required for the authorization code flow.',
+    'edit.advanced.responseTypes.notApplicable': 'Response types apply only to the authorization code flow.',
     'edit.advanced.tokenEndpointAuthMethod.placeholder': 'Select authentication method',
     'edit.advanced.tokenEndpointAuthMethod.hint':
       'Defines how the client authenticates at the token endpoint. Use client_secret_basic or client_secret_post for confidential clients, and none for public clients.',
@@ -1288,7 +1297,6 @@ const translations = {
     'edit.page.notFound': 'Application not found',
     'edit.page.back': 'Back to Applications',
     'edit.page.logoUpdate.label': 'Update Logo',
-    'edit.page.copyApplicationId': 'Copy Application ID',
     'edit.page.description.empty': 'No description',
     'edit.page.description.placeholder': 'Add a description',
     'edit.page.tabs.overview': 'Guide',
@@ -1338,6 +1346,10 @@ const translations = {
     'edit.general.sections.dangerZone.regenerateSecret.description':
       'Regenerating the client secret will immediately invalidate the current client secret and cannot be undone.',
     'edit.general.sections.dangerZone.regenerateSecret.button': 'Regenerate Client Secret',
+    'edit.general.sections.dangerZone.deleteApplication.title': 'Delete Application',
+    'edit.general.sections.dangerZone.deleteApplication.description':
+      'Permanently delete this application and all associated data. This action cannot be undone.',
+    'edit.general.sections.dangerZone.deleteApplication.button': 'Delete Application',
 
     // Flows section
     'edit.flows.labels.authFlow': 'Authentication Flow',
@@ -1598,6 +1610,30 @@ const translations = {
     'delete.disclaimer': 'Warning: All associated configurations will be permanently removed.',
     'delete.error': 'Failed to delete flow. Please try again.',
 
+    // Create flow wizard
+    'create.steps.type': 'Flow Type',
+    'create.steps.template': 'Template',
+    'create.steps.configure': 'Configure',
+    'create.configure.title': 'Name your flow',
+    'create.configure.name.label': 'Flow name',
+    'create.configure.name.placeholder': 'e.g. Customer Sign-in',
+    'create.configure.suggestions.label': 'Need inspiration? Try one of these:',
+    'create.configure.handle.label': 'Handle',
+    'create.configure.handle.placeholder': 'e.g. customer-sign-in',
+    'create.configure.handle.hint': 'Lowercase letters, numbers, and hyphens only',
+    'create.type.title': 'What kind of flow do you want to create?',
+    'create.type.signin.label': 'Sign-in',
+    'create.type.signin.description': 'Authenticate users with passwords, passkeys, or social providers',
+    'create.type.signup.label': 'Self Sign-up',
+    'create.type.signup.description': 'Let users register themselves with your application',
+    'create.type.onboarding.label': 'Onboarding',
+    'create.type.onboarding.description': 'Onboard invited users to your organization',
+    'create.template.title': 'Choose a starting template',
+    'create.template.recommended': 'Recommended',
+    'create.template.search': 'Search templates...',
+    'create.template.noResults': 'No templates match your search.',
+    'create.error.createFailed': 'Failed to create flow. Please try again.',
+
     // Flow labels and navigation
     label: 'Flows',
     'core.breadcrumb': '{{flowType}}',
@@ -1619,18 +1655,25 @@ const translations = {
 
     // Execution steps - names
     'core.executions.names.google': 'Google',
-    'core.executions.names.apple': 'Apple',
     'core.executions.names.github': 'GitHub',
-    'core.executions.names.facebook': 'Facebook',
-    'core.executions.names.microsoft': 'Microsoft',
+    'core.executions.names.oauth': 'OAuth',
+    'core.executions.names.oidc': 'OIDC Auth',
     'core.executions.names.PasskeyAuthentication': 'Passkey Authentication',
-    'core.executions.names.confirmationCode': 'Confirmation Code',
     'core.executions.names.magicLink': 'Magic Link',
-    'core.executions.names.sendEmailOTP': 'Send Email OTP',
-    'core.executions.names.verifyEmailOTP': 'Verify Email OTP',
     'core.executions.names.sendSMS': 'Send SMS',
     'core.executions.names.verifySMSOTP': 'Verify SMS OTP',
     'core.executions.names.default': 'Execution',
+    'core.executions.names.ouResolver': 'Resolve OU',
+    'core.executions.names.invite': 'Invite',
+    'core.executions.names.email': 'Send Email',
+    'core.executions.names.sms': 'Send SMS',
+    'core.executions.names.credentialSetter': 'Set Credentials',
+    'core.executions.names.attributeUniqueness': 'Validate Attribute Uniqueness',
+    'core.executions.names.permissionValidator': 'Validate Permission',
+    'core.executions.names.provisioning': 'Provisioning',
+    'core.executions.names.httpRequest': 'HTTP Request',
+    'core.executions.names.ouCreation': 'OU Creation',
+    'core.executions.names.userTypeResolver': 'User Type Resolver',
 
     // SMS OTP executor modes
     'core.executions.smsOtp.mode.send': 'Send OTP',
@@ -1652,6 +1695,14 @@ const translations = {
     'core.executions.consent.timeout.placeholder': '0',
     'core.executions.consent.timeout.hint': 'Time in seconds before the consent request expires. Use 0 for no timeout.',
 
+    // Identifying executor modes
+    'core.executions.identifying.mode.identify': 'Identify',
+    'core.executions.identifying.mode.resolve': 'Resolve (Disambiguation)',
+    'core.executions.identifying.mode.label': 'Mode',
+    'core.executions.identifying.mode.placeholder': 'Select a mode',
+    'core.executions.identifying.description':
+      'Configure the identifying executor mode. Use "Resolve" to enable user disambiguation when multiple users match.',
+
     // Passkey executor modes
     'core.executions.passkey.mode.challenge': 'Challenge',
     'core.executions.passkey.mode.verify': 'Verify',
@@ -1670,7 +1721,110 @@ const translations = {
     'core.executions.passkey.relyingPartyName.placeholder': 'e.g., My Application',
     'core.executions.passkey.relyingPartyName.hint': 'A human-readable name shown to users during passkey registration',
 
+    // OU Resolver executor
+    'core.executions.ouResolver.description': 'Configure the OU resolution strategy.',
+    'core.executions.ouResolver.resolveFrom.label': 'Resolve From',
+    'core.executions.ouResolver.resolveFrom.placeholder': 'Select a resolution strategy',
+    'core.executions.ouResolver.resolveFrom.caller': 'Caller',
+    'core.executions.ouResolver.resolveFrom.prompt': 'Prompt',
+    'core.executions.ouResolver.resolveFrom.promptAll': 'Prompt All',
+
+    // Invite executor
+    'core.executions.invite.description': 'Configure the invite executor mode.',
+    'core.executions.invite.mode.label': 'Mode',
+    'core.executions.invite.mode.placeholder': 'Select a mode',
+    'core.executions.invite.mode.generate': 'Generate',
+    'core.executions.invite.mode.verify': 'Verify',
+
+    // Email executor
+    'core.executions.email.description': 'Configure the email executor settings.',
+    'core.executions.email.emailTemplate.label': 'Email Template',
+    'core.executions.email.emailTemplate.placeholder': 'e.g., UserInvite',
+    'core.executions.email.emailTemplate.hint': 'The email template scenario to use when sending the email.',
+
+    // SMS executor
+    'core.executions.sms.description': 'Configure the SMS executor settings.',
+    'core.executions.sms.smsTemplate.label': 'SMS Template',
+    'core.executions.sms.smsTemplate.placeholder': 'e.g., OTPVerification',
+    'core.executions.sms.smsTemplate.hint': 'The SMS template scenario to use when sending the message.',
+
+    // Permission validator executor
+    'core.executions.permissionValidator.description': 'Configure required permission scopes.',
+    'core.executions.permissionValidator.requiredScopes.label': 'Required Scopes',
+    'core.executions.permissionValidator.requiredScopes.placeholder': 'e.g., system',
+    'core.executions.permissionValidator.requiredScopes.hint':
+      'Comma-separated list of scopes. The user must have at least one of these scopes.',
+
+    // Federated auth connection
+    'core.executions.federation.connection.description':
+      'Select a connection from the following list to link it with the login flow.',
+    'core.executions.federation.connection.label': 'Connection',
+    'core.executions.federation.connection.placeholder': 'Select a connection',
+    'core.executions.federation.connection.required': 'Connection is required and must be selected.',
+    'core.executions.federation.connection.noConnections':
+      'No connections available. Please create a connection to link with the login flow.',
+
+    // Federated auth properties
+    'core.executions.federation.allowAuthenticationWithoutLocalUser.label': 'Allow Authentication Without Local User',
+    'core.executions.federation.allowAuthenticationWithoutLocalUser.hint':
+      'Allow users to authenticate even when no matching local user exists.',
+    'core.executions.federation.allowRegistrationWithExistingUser.label': 'Allow Registration With Existing User',
+    'core.executions.federation.allowRegistrationWithExistingUser.hint':
+      'Allow existing users to proceed through registration flows.',
+    'core.executions.federation.allowCrossOUProvisioning.label': 'Allow Cross-OU Provisioning',
+    'core.executions.federation.allowCrossOUProvisioning.hint':
+      'Allow creating a user in a different organizational unit.',
+
+    // Provisioning executor
+    'core.executions.provisioning.description': 'Configure the provisioning executor settings.',
+    'core.executions.provisioning.assignGroup.label': 'Assign Group',
+    'core.executions.provisioning.assignGroup.placeholder': 'Group ID to assign',
+    'core.executions.provisioning.assignRole.label': 'Assign Role',
+    'core.executions.provisioning.assignRole.placeholder': 'Role ID to assign',
+
+    // OU executor
+    'core.executions.ouExecutor.description': 'Configure the OU creation executor settings.',
+    'core.executions.ouExecutor.parentOuId.label': 'Parent OU ID',
+    'core.executions.ouExecutor.parentOuId.placeholder': 'Override the default parent OU',
+    'core.executions.ouExecutor.parentOuId.hint': 'Overrides the default OU for new OU creation.',
+
+    // User Type Resolver executor
+    'core.executions.userTypeResolver.description': 'Configure the user type resolver settings.',
+    'core.executions.userTypeResolver.allowedUserTypes.label': 'Allowed User Types',
+    'core.executions.userTypeResolver.allowedUserTypes.placeholder': 'e.g., employee, customer',
+    'core.executions.userTypeResolver.allowedUserTypes.hint':
+      'Comma-separated list of allowed user type names to filter available types.',
+
+    // HTTP Request executor
+    'core.executions.httpRequest.description': 'Configure the HTTP request executor settings.',
+    'core.executions.httpRequest.url.label': 'URL',
+    'core.executions.httpRequest.url.placeholder': 'https://api.example.com/endpoint',
+    'core.executions.httpRequest.method.label': 'Method',
+    'core.executions.httpRequest.method.placeholder': 'Select HTTP method',
+    'core.executions.httpRequest.headers.label': 'Headers',
+    'core.executions.httpRequest.headers.keyPlaceholder': 'Header name',
+    'core.executions.httpRequest.headers.valuePlaceholder': 'Header value',
+    'core.executions.httpRequest.body.label': 'Request Body',
+    'core.executions.httpRequest.body.placeholder': 'Enter JSON request body',
+    'core.executions.httpRequest.timeout.label': 'Timeout (seconds)',
+    'core.executions.httpRequest.timeout.placeholder': '10',
+    'core.executions.httpRequest.timeout.hint': 'Request timeout in seconds (max 20).',
+    'core.executions.httpRequest.responseMapping.label': 'Response Mapping',
+    'core.executions.httpRequest.responseMapping.keyPlaceholder': 'Runtime data key',
+    'core.executions.httpRequest.responseMapping.valuePlaceholder': 'Response path (e.g., data.userId)',
+    'core.executions.httpRequest.errorHandling.label': 'Error Handling',
+    'core.executions.httpRequest.errorHandling.failOnError.label': 'Fail on Error',
+    'core.executions.httpRequest.errorHandling.retryCount.label': 'Retry Count',
+    'core.executions.httpRequest.errorHandling.retryCount.placeholder': '0',
+    'core.executions.httpRequest.errorHandling.retryCount.hint': 'Max retry attempts (max 5).',
+    'core.executions.httpRequest.errorHandling.retryDelay.label': 'Retry Delay (ms)',
+    'core.executions.httpRequest.errorHandling.retryDelay.placeholder': '0',
+    'core.executions.httpRequest.errorHandling.retryDelay.hint': 'Delay between retries in milliseconds (max 5000).',
+
     // Execution steps - tooltips and messages
+    // No-config executors
+    'core.executions.noConfig.description': 'This executor has no configurable properties.',
+
     'core.executions.tooltip.configurationHint': 'Click to configure this step',
     'core.executions.landing.message': 'This {{executor}} step will redirect users to a landing page.',
 
@@ -1733,6 +1887,8 @@ const translations = {
     // Placeholders
     'core.placeholders.image': 'No image source',
     'core.placeholders.image.dynamicSrc': 'Resolved at runtime',
+    'core.placeholders.customComponent': 'Custom',
+    'core.placeholders.customComponent.identifier': 'Identifier: {{id}}',
 
     // Validation messages - rich text
     'core.validation.fields.richText.general':
@@ -1746,6 +1902,10 @@ const translations = {
     // Validation messages - phone number input
     'core.validation.fields.phoneNumberInput.label': 'Phone number label is required',
     'core.validation.fields.phoneNumberInput.ref': 'Phone number attribute is required',
+
+    // Validation messages - form
+    'core.validation.fields.form.noSubmitButton':
+      'Form <code>{{id}}</code> has input fields but no submit button. Add a button with type "Submit" so that users can submit the form.',
 
     // Elements - rich text
     'core.elements.richText.placeholder': 'Enter text here...',
@@ -1878,7 +2038,9 @@ const translations = {
     'core.fieldExtendedProperties.selectAttribute': 'Select an attribute',
 
     // Button extended properties
-    'core.buttonExtendedProperties.type': 'Type',
+    'core.buttonExtendedProperties.type.label': 'Type',
+    'core.buttonExtendedProperties.type.submit': 'Submit',
+    'core.buttonExtendedProperties.type.trigger': 'Trigger',
     'core.buttonExtendedProperties.startIcon.label': 'Start Icon',
     'core.buttonExtendedProperties.startIcon.placeholder': 'Enter icon path (e.g., assets/images/icons/icon.svg)',
     'core.buttonExtendedProperties.startIcon.hint': 'Optional icon displayed before the button label',

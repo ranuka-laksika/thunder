@@ -29,14 +29,26 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
+  Trans: ({children}: {children: ReactNode}) => children,
 }));
 
-vi.mock('@/features/flows/plugins/PluginRegistry', () => ({
-  default: {
-    getInstance: () => ({
-      executeSync: () => true,
-    }),
-  },
+vi.mock('@/features/flows/hooks/useFlowPlugins', () => ({
+  default: () => ({
+    onPropertyChange: vi.fn().mockReturnValue(vi.fn()),
+    emitPropertyChange: vi.fn().mockReturnValue(true),
+    onPropertyPanelOpen: vi.fn().mockReturnValue(vi.fn()),
+    emitPropertyPanelOpen: vi.fn().mockReturnValue(true),
+    onElementFilter: vi.fn().mockReturnValue(vi.fn()),
+    emitElementFilter: vi.fn().mockReturnValue(true),
+    onEdgeDelete: vi.fn().mockReturnValue(vi.fn()),
+    emitEdgeDelete: vi.fn().mockReturnValue(true),
+    onNodeDelete: vi.fn().mockReturnValue(vi.fn()),
+    emitNodeDelete: vi.fn().mockReturnValue(true),
+    onNodeElementDelete: vi.fn().mockReturnValue(vi.fn()),
+    emitNodeElementDelete: vi.fn().mockReturnValue(true),
+    onTemplateLoad: vi.fn().mockReturnValue(vi.fn()),
+    emitTemplateLoad: vi.fn().mockReturnValue(true),
+  }),
 }));
 
 vi.mock('@/features/flows/utils/generateResourceId', () => ({
@@ -114,12 +126,20 @@ describe('FormAdapter', () => {
       expect(screen.getByText('flows:core.adapters.form.placeholder')).toBeInTheDocument();
     });
 
-    it('should show placeholder when only non-FIELD components exist', () => {
+    it('should not show placeholder when non-FIELD components exist', () => {
       const components = [
         createMockElement({id: 'comp-1', category: ElementCategories.Action}),
         createMockElement({id: 'comp-2', category: ElementCategories.Display}),
       ];
       const resource = createMockElement({components});
+
+      render(<FormAdapter resource={resource} stepId="step-1" />);
+
+      expect(screen.queryByText('flows:core.adapters.form.placeholder')).not.toBeInTheDocument();
+    });
+
+    it('should show placeholder when form is empty', () => {
+      const resource = createMockElement({components: []});
 
       render(<FormAdapter resource={resource} stepId="step-1" />);
 
@@ -201,7 +221,7 @@ describe('FormAdapter', () => {
   });
 
   describe('Filtering', () => {
-    it('should filter components through PluginRegistry', () => {
+    it('should filter components through useFlowPlugins', () => {
       const components = [
         createMockElement({id: 'comp-1', category: ElementCategories.Field}),
         createMockElement({id: 'comp-2', category: ElementCategories.Field}),

@@ -24,9 +24,8 @@ import {useTranslation} from 'react-i18next';
 import Droppable from '../../../dnd/Droppable';
 import ReorderableFlowElement from '../../steps/view/ReorderableElement';
 import VisualFlowConstants from '@/features/flows/constants/VisualFlowConstants';
+import useFlowPlugins from '@/features/flows/hooks/useFlowPlugins';
 import {ElementCategories, type Element as FlowElement} from '@/features/flows/models/elements';
-import FlowEventTypes from '@/features/flows/models/extension';
-import PluginRegistry from '@/features/flows/plugins/PluginRegistry';
 import generateResourceId from '@/features/flows/utils/generateResourceId';
 import './FormAdapter.scss';
 
@@ -72,17 +71,18 @@ function FormAdapter({
   onAddElementToForm = undefined,
 }: FormAdapterPropsInterface): ReactElement {
   const {t} = useTranslation();
+  const {emitElementFilter} = useFlowPlugins();
 
-  const shouldShowFormFieldsPlaceholder = !resource?.components?.some(
+  const hasInputFields = resource?.components?.some(
     (element: FlowElement) => element.category === ElementCategories.Field,
   );
 
+  const shouldShowFormFieldsPlaceholder = !hasInputFields && !resource?.components?.length;
+
   const filteredComponents = useMemo(() => {
     if (!resource?.components) return [];
-    return resource.components.filter((component: FlowElement) =>
-      PluginRegistry.getInstance().executeSync(FlowEventTypes.ON_NODE_ELEMENT_FILTER, component),
-    );
-  }, [resource?.components]);
+    return resource.components.filter((component: FlowElement) => emitElementFilter(component));
+  }, [resource?.components, emitElementFilter]);
 
   return (
     <Badge
@@ -91,7 +91,7 @@ function FormAdapter({
         vertical: 'top',
       }}
       badgeContent={t('flows:core.adapters.form.badgeLabel')}
-      className="adapter form-adapter"
+      className={classNames('adapter', 'form-adapter')}
     >
       <Box>
         <Droppable
@@ -117,11 +117,8 @@ function FormAdapter({
               element={component}
               className={classNames('flow-builder-step-content-form-field')}
               group={resource.id}
-              type={VisualFlowConstants.FLOW_BUILDER_DRAGGABLE_ID}
-              accept={[
-                VisualFlowConstants.FLOW_BUILDER_DRAGGABLE_ID,
-                ...VisualFlowConstants.FLOW_BUILDER_FORM_ALLOWED_RESOURCE_TYPES,
-              ]}
+              type={resource.id}
+              accept={[resource.id, ...VisualFlowConstants.FLOW_BUILDER_FORM_ALLOWED_RESOURCE_TYPES]}
               availableElements={availableElements}
               onAddElementToForm={onAddElementToForm}
             />

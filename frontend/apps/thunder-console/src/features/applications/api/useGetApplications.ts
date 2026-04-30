@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useQuery, type UseQueryResult} from '@tanstack/react-query';
-import {useConfig} from '@thunder/shared-contexts';
+import {useConfig} from '@thunder/contexts';
 import ApplicationQueryKeys from '../constants/application-query-keys';
 import type {ApplicationListResponse} from '../models/responses';
 
@@ -39,7 +39,7 @@ export interface UseGetApplicationsParams {
 }
 
 /**
- * Custom React hook to fetch a paginated list of applications from the Thunder server.
+ * Custom React hook to fetch a paginated list of applications from the server.
  *
  * This hook uses TanStack Query to manage the server state and provides automatic
  * caching, refetching, and background updates. The query is keyed by the pagination

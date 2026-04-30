@@ -18,7 +18,7 @@
 
 import {useAsgardeo} from '@asgardeo/react';
 import {useMutation, useQueryClient, type UseMutationResult} from '@tanstack/react-query';
-import {useConfig, useToast} from '@thunder/shared-contexts';
+import {useConfig, useToast} from '@thunder/contexts';
 import {getErrorMessage} from '@thunder/utils';
 import {useTranslation} from 'react-i18next';
 import ApplicationQueryKeys from '../constants/application-query-keys';
@@ -42,7 +42,7 @@ export interface UpdateApplicationVariables {
 }
 
 /**
- * Custom React hook to update an existing application in the Thunder server.
+ * Custom React hook to update an existing application in the server.
  *
  * This hook uses TanStack Query mutations to handle the application update process,
  * providing loading states and error handling. Upon successful update, it automatically
@@ -98,7 +98,7 @@ export default function useUpdateApplication(): UseMutationResult<Application, E
         headers: {
           'Content-Type': 'application/json',
         },
-        data: JSON.stringify(data),
+        data: data,
       } as unknown as Parameters<typeof http.request>[0]);
 
       return response.data;

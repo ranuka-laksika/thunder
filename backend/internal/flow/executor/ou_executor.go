@@ -20,6 +20,7 @@ package executor
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/asgardeo/thunder/internal/flow/common"
 	"github.com/asgardeo/thunder/internal/flow/core"
@@ -74,7 +75,7 @@ func newOUExecutor(
 
 // Execute executes the ou creation logic.
 func (o *ouExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, error) {
-	logger := o.logger.With(log.String(log.LoggerKeyFlowID, ctx.FlowID))
+	logger := o.logger.With(log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	logger.Debug("Executing OU creation executor")
 
 	execResp := &common.ExecutorResponse{
@@ -96,7 +97,11 @@ func (o *ouExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, e
 	}
 
 	// Create the OU using the OU service.
-	ouRequest := o.getOrganizationUnitRequest(ctx)
+	ouRequest, err := o.getOrganizationUnitRequest(ctx)
+	if err != nil {
+		logger.Error("Failed to build organization unit request", log.String("error", err.Error()))
+		return nil, err
+	}
 	createdOU, svcErr := o.ouService.CreateOrganizationUnit(ctx.Context, ouRequest)
 	if svcErr != nil {
 		if svcErr.Type == serviceerror.ClientErrorType {
@@ -108,14 +113,14 @@ func (o *ouExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, e
 			case ou.ErrorOrganizationUnitHandleConflict.Code:
 				execResp.FailureReason = "An organization unit with the same handle already exists."
 			default:
-				execResp.FailureReason = "Failed to create organization unit: " + svcErr.ErrorDescription
+				execResp.FailureReason = "Failed to create organization unit: " + svcErr.ErrorDescription.DefaultValue
 			}
 
 			return execResp, nil
 		}
 
 		logger.Error("Error occurred while creating organization unit: ", log.String("errorCode", svcErr.Code),
-			log.String("errorDescription", svcErr.ErrorDescription))
+			log.String("errorDescription", svcErr.ErrorDescription.DefaultValue))
 		return nil, errors.New("failed to create organization unit")
 	}
 
@@ -133,17 +138,25 @@ func (o *ouExecutor) Execute(ctx *core.NodeContext) (*common.ExecutorResponse, e
 }
 
 // getOrganizationUnitRequest constructs an OrganizationUnitRequest from the NodeContext.
-func (o *ouExecutor) getOrganizationUnitRequest(ctx *core.NodeContext) ou.OrganizationUnitRequest {
-	ouRequest := ou.OrganizationUnitRequest{
+func (o *ouExecutor) getOrganizationUnitRequest(ctx *core.NodeContext) (ou.OrganizationUnitRequestWithID, error) {
+	ouRequest := ou.OrganizationUnitRequestWithID{
 		Name:        ctx.UserInputs[userInputOuName],
 		Handle:      ctx.UserInputs[userInputOuHandle],
 		Description: ctx.UserInputs[userInputOuDesc],
 	}
 
-	// Set parent OU ID if defaultOUID is present in runtime data
-	if val, ok := ctx.RuntimeData[defaultOUIDKey]; ok && val != "" {
+	// Check if parentOuId is explicitly set in node properties.
+	if val, ok := ctx.NodeProperties["parentOuId"]; ok {
+		strVal, isStr := val.(string)
+		if !isStr {
+			return ouRequest, fmt.Errorf("parentOuId must be a string, got %T", val)
+		}
+		if strVal != "" {
+			ouRequest.Parent = &strVal
+		}
+	} else if val, ok := ctx.RuntimeData[defaultOUIDKey]; ok && val != "" {
 		ouRequest.Parent = &val
 	}
 
-	return ouRequest
+	return ouRequest, nil
 }

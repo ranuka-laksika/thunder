@@ -191,8 +191,8 @@ func (ts *RefreshTokenTestSuite) SetupSuite() {
 
 	// Create test user.
 	user := testutils.User{
-		OUID:             ouID,
-		Type:             "refresh-token-test-person",
+		OUID: ouID,
+		Type: "refresh-token-test-person",
 		Attributes: json.RawMessage(fmt.Sprintf(`{
 			"username": "%s",
 			"password": "%s",
@@ -208,20 +208,21 @@ func (ts *RefreshTokenTestSuite) SetupSuite() {
 
 func (ts *RefreshTokenTestSuite) createTestApplication() string {
 	app := map[string]interface{}{
-		"name":                         refreshTokenTestAppName,
-		"description":                  "Application for refresh token integration tests",
-		"authFlowId":                 ts.authFlowID,
+		"name":                      refreshTokenTestAppName,
+		"description":               "Application for refresh token integration tests",
+		"ouId":                      ts.ouID,
+		"authFlowId":                ts.authFlowID,
 		"isRegistrationFlowEnabled": false,
-		"allowedUserTypes":           []string{"refresh-token-test-person"},
+		"allowedUserTypes":          []string{"refresh-token-test-person"},
 		"inboundAuthConfig": []map[string]interface{}{
 			{
 				"type": "oauth2",
 				"config": map[string]interface{}{
-					"clientId":                  refreshTokenTestClientID,
-					"clientSecret":              refreshTokenTestClientSecret,
-					"redirectUris":              []string{refreshTokenTestRedirectURI},
-					"grantTypes":                []string{"authorization_code", "refresh_token"},
-					"responseTypes":             []string{"code"},
+					"clientId":                refreshTokenTestClientID,
+					"clientSecret":            refreshTokenTestClientSecret,
+					"redirectUris":            []string{refreshTokenTestRedirectURI},
+					"grantTypes":              []string{"authorization_code", "refresh_token"},
+					"responseTypes":           []string{"code"},
 					"tokenEndpointAuthMethod": "client_secret_basic",
 				},
 			},
@@ -303,18 +304,18 @@ func (ts *RefreshTokenTestSuite) obtainTokensViaAuthCodeFlow(
 	location := resp.Header.Get("Location")
 	ts.Require().NotEmpty(location, "Expected Location header")
 
-	authID, flowID, err := testutils.ExtractAuthData(location)
+	authID, executionId, err := testutils.ExtractAuthData(location)
 	ts.Require().NoError(err, "Failed to extract auth data")
 
 	// Step 2: Execute authentication flow.
-	_, err = testutils.ExecuteAuthenticationFlow(flowID, nil, "")
+	initialStep, err := testutils.ExecuteAuthenticationFlow(executionId, nil, "")
 	ts.Require().NoError(err, "Failed to initiate authentication flow")
 
-	flowStep, err := testutils.ExecuteAuthenticationFlow(flowID,
+	flowStep, err := testutils.ExecuteAuthenticationFlow(executionId,
 		map[string]string{
 			"username": refreshTokenTestUsername,
 			"password": refreshTokenTestPassword,
-		}, "action_001")
+		}, "action_001", initialStep.ChallengeToken)
 	ts.Require().NoError(err, "Failed to execute authentication flow")
 	ts.Require().Equal("COMPLETE", flowStep.FlowStatus,
 		"Authentication flow should complete")

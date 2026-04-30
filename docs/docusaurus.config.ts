@@ -16,11 +16,12 @@
  * under the License.
  */
 
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
-import webpackPlugin from './plugins/webpackPlugin';
+import type {Config} from '@docusaurus/types';
+import {themes as prismThemes} from 'prism-react-renderer';
+import personaPlugin from './plugins/personaPlugin';
 import thunderConfig from './docusaurus.thunder.config';
+import webpackPlugin from './plugins/webpackPlugin';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -49,7 +50,7 @@ const config: Config = {
   organizationName: thunderConfig.project.source.github.owner.name, // Usually your GitHub org/user name.
   projectName: thunderConfig.project.source.github.name, // Usually your repo name.
 
-  onBrokenLinks: 'log',
+  onBrokenLinks: 'throw',
 
   // Internationalization (i18n) configuration.
   // See: https://docusaurus.io/docs/i18n/introduction
@@ -63,21 +64,10 @@ const config: Config = {
         htmlLang: 'en-US',
         calendar: 'gregory',
       },
-      // Future locales can be added here. Example:
-      // 'es-ES': {
-      //   label: 'Español',
-      //   direction: 'ltr',
-      //   htmlLang: 'es-ES',
-      // },
-      // 'ja-JP': {
-      //   label: '日本語',
-      //   direction: 'ltr',
-      //   htmlLang: 'ja-JP',
-      // },
     },
   },
 
-  plugins: [webpackPlugin],
+  plugins: [webpackPlugin, personaPlugin],
 
   presets: [
     [
@@ -97,19 +87,7 @@ const config: Config = {
             },
           },
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Blog edit URL.
-          editUrl: thunderConfig.project.source.github.editUrls.blog,
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -138,6 +116,10 @@ const config: Config = {
         width: '101px',
       },
       items: [
+        {
+          type: 'custom-PersonaDropdown',
+          position: 'left',
+        },
         {
           type: 'docSidebar',
           sidebarId: 'docsSidebar',
@@ -215,11 +197,15 @@ const config: Config = {
             },
           ],
         },
-        thunderConfig.documentation.versioning.enabled && {
-          type: 'docsVersionDropdown',
-          position: 'right',
-        },
-      ].filter(Boolean),
+        ...(thunderConfig.documentation.versioning.enabled
+          ? [
+              {
+                type: 'docsVersionDropdown',
+                position: 'right' as const,
+              },
+            ]
+          : []),
+      ],
     },
     footer: {
       style: 'dark',

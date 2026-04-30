@@ -38,6 +38,7 @@ type ExecutorInterface interface {
 	ValidatePrerequisites(ctx *NodeContext, execResp *common.ExecutorResponse) bool
 	GetUserIDFromContext(ctx *NodeContext) string
 	GetRequiredInputs(ctx *NodeContext) []common.Input
+	GetExecutionPolicy(mode string) *ExecutionPolicy
 }
 
 // executor represents the basic implementation of an executor.
@@ -93,7 +94,7 @@ func (e *executor) GetPrerequisites() []common.Input {
 func (e *executor) HasRequiredInputs(ctx *NodeContext, execResp *common.ExecutorResponse) bool {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "Executor"),
 		log.String(log.LoggerKeyExecutorName, e.GetName()),
-		log.String(log.LoggerKeyFlowID, ctx.FlowID))
+		log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 	logger.Debug("Checking inputs for the executor")
 
 	requiredData := e.GetRequiredInputs(ctx)
@@ -114,7 +115,7 @@ func (e *executor) HasRequiredInputs(ctx *NodeContext, execResp *common.Executor
 func (e *executor) ValidatePrerequisites(ctx *NodeContext, execResp *common.ExecutorResponse) bool {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "Executor"),
 		log.String(log.LoggerKeyExecutorName, e.GetName()),
-		log.String(log.LoggerKeyFlowID, ctx.FlowID))
+		log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	prerequisites := e.GetPrerequisites()
 	if len(prerequisites) == 0 {
@@ -179,13 +180,19 @@ func (e *executor) GetRequiredInputs(ctx *NodeContext) []common.Input {
 	return e.GetDefaultInputs()
 }
 
+// GetExecutionPolicy returns the execution policy for the given mode. By default, it returns nil,
+// indicating no special execution policy. Executors that need per-mode policies should override this method.
+func (e *executor) GetExecutionPolicy(mode string) *ExecutionPolicy {
+	return nil
+}
+
 // appendMissingInputs appends the missing required inputs to the executor response.
 // Returns true if any required input is found missing, otherwise false.
 func (e *executor) appendMissingInputs(ctx *NodeContext, execResp *common.ExecutorResponse,
 	requiredInputs []common.Input) bool {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "Executor"),
 		log.String(log.LoggerKeyExecutorName, e.GetName()),
-		log.String(log.LoggerKeyFlowID, ctx.FlowID))
+		log.String(log.LoggerKeyExecutionID, ctx.ExecutionID))
 
 	requireData := false
 	for _, input := range requiredInputs {

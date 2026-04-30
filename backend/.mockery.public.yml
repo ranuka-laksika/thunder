@@ -148,6 +148,15 @@ packages:
       pkgname: discoverymock
       filename: "{{.InterfaceName}}_mock.go"
 
+  github.com/asgardeo/thunder/internal/entity:
+    config:
+      dir: tests/mocks/entitymock
+      structname: '{{.InterfaceName}}Mock'
+      pkgname: entitymock
+      filename: "{{.InterfaceName}}_mock.go"
+    interfaces:
+      EntityServiceInterface:
+
   github.com/asgardeo/thunder/internal/user:
     config:
       all: true
@@ -170,14 +179,6 @@ packages:
       dir: tests/mocks/authn/assertmock
       structname: '{{.InterfaceName}}Mock'
       pkgname: assertmock
-      filename: "{{.InterfaceName}}_mock.go"
-
-  github.com/asgardeo/thunder/internal/authn/credentials:
-    config:
-      all: true
-      dir: tests/mocks/authn/credentialsmock
-      structname: '{{.InterfaceName}}Mock'
-      pkgname: credentialsmock
       filename: "{{.InterfaceName}}_mock.go"
 
   github.com/asgardeo/thunder/internal/authn/otp:
@@ -272,11 +273,21 @@ packages:
 
   github.com/asgardeo/thunder/internal/application:
     config:
-      all: true
       dir: tests/mocks/applicationmock
       structname: '{{.InterfaceName}}Mock'
       pkgname: applicationmock
       filename: "{{.InterfaceName}}_mock.go"
+    interfaces:
+      ApplicationServiceInterface:
+
+  github.com/asgardeo/thunder/internal/inboundclient:
+    config:
+      dir: tests/mocks/inboundclientmock
+      structname: '{{.InterfaceName}}Mock'
+      pkgname: inboundclientmock
+      filename: "{{.InterfaceName}}_mock.go"
+    interfaces:
+      InboundClientServiceInterface:
   
   github.com/asgardeo/thunder/internal/ou:
     config:
@@ -430,22 +441,30 @@ packages:
       pkgname: resourcemock
       filename: "{{.InterfaceName}}_mock.go"
 
-  github.com/asgardeo/thunder/internal/authnprovider:
+  github.com/asgardeo/thunder/internal/entityprovider:
     config:
       all: true
-      dir: tests/mocks/authnprovidermock
+      dir: tests/mocks/entityprovidermock
       structname: '{{.InterfaceName}}Mock'
-      pkgname: authnprovidermock
+      pkgname: entityprovidermock
       filename: "{{.InterfaceName}}_mock.go"
 
-  github.com/asgardeo/thunder/internal/userprovider:
+  github.com/asgardeo/thunder/internal/authnprovider/provider:
     config:
       all: true
-      dir: tests/mocks/userprovidermock
+      dir: tests/mocks/authnprovider/providermock
       structname: '{{.InterfaceName}}Mock'
-      pkgname: userprovidermock
+      pkgname: providermock
       filename: "{{.InterfaceName}}_mock.go"
-  
+
+  github.com/asgardeo/thunder/internal/authnprovider/manager:
+    config:
+      all: true
+      dir: tests/mocks/authnprovider/managermock
+      structname: '{{.InterfaceName}}Mock'
+      pkgname: managermock
+      filename: "{{.InterfaceName}}_mock.go"
+
   github.com/asgardeo/thunder/internal/system/sysauthz:
     interfaces:
       SystemAuthorizationServiceInterface:

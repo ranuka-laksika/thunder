@@ -29,7 +29,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/asgardeo/thunder/internal/application/model"
+	inboundmodel "github.com/asgardeo/thunder/internal/inboundclient/model"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
+	i18ncore "github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/internal/system/mcp/tool"
 )
 
@@ -88,7 +90,7 @@ func (suite *ApplicationToolsTestSuite) TestListApplications_Error() {
 	tools := &applicationTools{appService: mockService}
 
 	mockService.On("GetApplicationList", mock.Anything).Return(nil, &serviceerror.ServiceError{
-		ErrorDescription: "database error",
+		ErrorDescription: i18ncore.I18nMessage{DefaultValue: "database error"},
 	})
 
 	ctx := context.Background()
@@ -134,7 +136,7 @@ func (suite *ApplicationToolsTestSuite) TestGetApplicationByID_Error() {
 	tools := &applicationTools{appService: mockService}
 
 	mockService.On("GetApplication", mock.Anything, "app123").Return(nil, &serviceerror.ServiceError{
-		ErrorDescription: "application not found",
+		ErrorDescription: i18ncore.I18nMessage{DefaultValue: "application not found"},
 	})
 
 	ctx := context.Background()
@@ -155,7 +157,7 @@ func (suite *ApplicationToolsTestSuite) TestGetApplicationByClientID_Success() {
 	mockService := NewApplicationServiceInterfaceMock(suite.T())
 	tools := &applicationTools{appService: mockService}
 
-	oauthApp := &model.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		AppID:    "app123",
 		ClientID: "client123",
 	}
@@ -186,7 +188,7 @@ func (suite *ApplicationToolsTestSuite) TestGetApplicationByClientID_OAuthError(
 	tools := &applicationTools{appService: mockService}
 
 	mockService.On("GetOAuthApplication", mock.Anything, "client123").Return(nil, &serviceerror.ServiceError{
-		ErrorDescription: "OAuth application not found",
+		ErrorDescription: i18ncore.I18nMessage{DefaultValue: "OAuth application not found"},
 	})
 
 	ctx := context.Background()
@@ -207,14 +209,14 @@ func (suite *ApplicationToolsTestSuite) TestGetApplicationByClientID_AppError() 
 	mockService := NewApplicationServiceInterfaceMock(suite.T())
 	tools := &applicationTools{appService: mockService}
 
-	oauthApp := &model.OAuthAppConfigProcessedDTO{
+	oauthApp := &inboundmodel.OAuthClient{
 		AppID:    "app123",
 		ClientID: "client123",
 	}
 
 	mockService.On("GetOAuthApplication", mock.Anything, "client123").Return(oauthApp, nil)
 	mockService.On("GetApplication", mock.Anything, "app123").Return(nil, &serviceerror.ServiceError{
-		ErrorDescription: "application not found",
+		ErrorDescription: i18ncore.I18nMessage{DefaultValue: "application not found"},
 	})
 
 	ctx := context.Background()
@@ -269,7 +271,7 @@ func (suite *ApplicationToolsTestSuite) TestCreateApplication_Error() {
 	}
 
 	mockService.On("CreateApplication", mock.Anything, &inputApp).Return(nil, &serviceerror.ServiceError{
-		ErrorDescription: "validation error",
+		ErrorDescription: i18ncore.I18nMessage{DefaultValue: "validation error"},
 	})
 
 	ctx := context.Background()
@@ -325,7 +327,7 @@ func (suite *ApplicationToolsTestSuite) TestUpdateApplication_Error() {
 	}
 
 	mockService.On("UpdateApplication", mock.Anything, "app123", &inputApp).Return(nil, &serviceerror.ServiceError{
-		ErrorDescription: "application not found",
+		ErrorDescription: i18ncore.I18nMessage{DefaultValue: "application not found"},
 	})
 
 	ctx := context.Background()

@@ -19,6 +19,8 @@
 package github
 
 import (
+	"github.com/asgardeo/thunder/internal/system/i18n/core"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -31,17 +33,15 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	authncm "github.com/asgardeo/thunder/internal/authn/common"
 	"github.com/asgardeo/thunder/internal/authn/oauth"
-	"github.com/asgardeo/thunder/internal/idp"
+	"github.com/asgardeo/thunder/internal/entityprovider"
 	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
 	"github.com/asgardeo/thunder/internal/system/log"
-	"github.com/asgardeo/thunder/internal/userprovider"
 	"github.com/asgardeo/thunder/tests/mocks/authn/oauthmock"
+	"github.com/asgardeo/thunder/tests/mocks/entityprovidermock"
 	"github.com/asgardeo/thunder/tests/mocks/httpmock"
 	"github.com/asgardeo/thunder/tests/mocks/idp/idpmock"
-	"github.com/asgardeo/thunder/tests/mocks/userprovidermock"
 )
 
 const (
@@ -94,7 +94,7 @@ func (suite *GithubOAuthAuthnServiceTestSuite) TestBuildAuthorizeURLSuccess() {
 func (suite *GithubOAuthAuthnServiceTestSuite) TestBuildAuthorizeURLError() {
 	svcErr := &serviceerror.ServiceError{
 		Code:             "ERROR",
-		ErrorDescription: "Failed to build URL",
+		ErrorDescription: core.I18nMessage{Key: "error.test.failed_to_build_url", DefaultValue: "Failed to build URL"},
 	}
 	suite.mockOAuthService.On("BuildAuthorizeURL", mock.Anything, testGithubIDPID).Return("", svcErr)
 
@@ -122,8 +122,10 @@ func (suite *GithubOAuthAuthnServiceTestSuite) TestExchangeCodeForTokenSuccess()
 func (suite *GithubOAuthAuthnServiceTestSuite) TestExchangeCodeForTokenError() {
 	code := "auth_code"
 	svcErr := &serviceerror.ServiceError{
-		Code:             "TOKEN_ERROR",
-		ErrorDescription: "Failed to exchange token",
+		Code: "TOKEN_ERROR",
+		ErrorDescription: core.I18nMessage{
+			Key: "error.test.failed_to_exchange_token", DefaultValue: "Failed to exchange token",
+		},
 	}
 	suite.mockOAuthService.On("ExchangeCodeForToken", mock.Anything, testGithubIDPID, code, false).Return(nil, svcErr)
 
@@ -343,23 +345,23 @@ func (suite *GithubOAuthAuthnServiceTestSuite) TestFetchUserInfoWithEmailFetchFa
 
 func (suite *GithubOAuthAuthnServiceTestSuite) TestGetInternalUserSuccess() {
 	sub := "user123"
-	user := &userprovider.User{
-		UserID:   "user123",
-		UserType: "person",
+	user := &entityprovider.Entity{
+		ID:   "user123",
+		Type: "person",
 	}
 	suite.mockOAuthService.On("GetInternalUser", sub).Return(user, nil)
 
 	result, err := suite.service.GetInternalUser(sub)
 	suite.Nil(err)
 	suite.NotNil(result)
-	suite.Equal(user.UserID, result.UserID)
+	suite.Equal(user.ID, result.ID)
 }
 
 func (suite *GithubOAuthAuthnServiceTestSuite) TestGetInternalUserError() {
 	sub := "user123"
 	svcErr := &serviceerror.ServiceError{
 		Code:             "USER_NOT_FOUND",
-		ErrorDescription: "User not found",
+		ErrorDescription: core.I18nMessage{Key: "error.test.user_not_found", DefaultValue: "User not found"},
 	}
 	suite.mockOAuthService.On("GetInternalUser", sub).Return(nil, svcErr)
 
@@ -380,11 +382,6 @@ func (suite *GithubOAuthAuthnServiceTestSuite) TestShouldFetchEmailAndGetMetadat
 
 	// shouldFetchEmail false
 	suite.False(gsvc.shouldFetchEmail([]string{"openid", "profile"}))
-
-	// getMetadata
-	meta := gsvc.getMetadata()
-	suite.Equal(authncm.AuthenticatorGithub, meta.Name)
-	suite.Equal(idp.IDPTypeGitHub, meta.AssociatedIDP)
 }
 
 func (suite *GithubOAuthAuthnServiceTestSuite) TestGetOAuthClientConfig() {
@@ -443,7 +440,7 @@ func (suite *GithubOAuthAuthnServiceTestSuite) TestFetchPrimaryEmailEdgeCases() 
 func (suite *GithubOAuthAuthnServiceTestSuite) TestConstructorAndInjectInternal() {
 	// create mocks for idp and user to pass into constructor (avoid global init)
 	mockIdp := idpmock.NewIDPServiceInterfaceMock(suite.T())
-	mockUser := userprovidermock.NewUserProviderInterfaceMock(suite.T())
+	mockUser := entityprovidermock.NewEntityProviderInterfaceMock(suite.T())
 
 	// call constructor which builds default http client and internal service
 	svcInterface := newGithubOAuthAuthnService(mockIdp, mockUser)

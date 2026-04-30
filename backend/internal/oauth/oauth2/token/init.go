@@ -19,9 +19,11 @@
 package token
 
 import (
+	"context"
 	"net/http"
 
-	"github.com/asgardeo/thunder/internal/application"
+	authnprovidermgr "github.com/asgardeo/thunder/internal/authnprovider/manager"
+	"github.com/asgardeo/thunder/internal/inboundclient"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/clientauth"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/discovery"
 	"github.com/asgardeo/thunder/internal/oauth/oauth2/granthandlers"
@@ -36,7 +38,8 @@ import (
 func Initialize(
 	mux *http.ServeMux,
 	jwtService jwt.JWTServiceInterface,
-	appService application.ApplicationServiceInterface,
+	inboundClient inboundclient.InboundClientServiceInterface,
+	authnProvider authnprovidermgr.AuthnProviderManagerInterface,
 	grantHandlerProvider granthandlers.GrantHandlerProviderInterface,
 	scopeValidator scope.ScopeValidatorInterface,
 	observabilitySvc observability.ObservabilityServiceInterface,
@@ -45,7 +48,7 @@ func Initialize(
 ) TokenHandlerInterface {
 	tokenSvc := newTokenService(grantHandlerProvider, scopeValidator, observabilitySvc, transactioner)
 	tokenHandler := newTokenHandler(tokenSvc, observabilitySvc)
-	registerRoutes(mux, tokenHandler, appService, jwtService, discoveryService)
+	registerRoutes(mux, tokenHandler, inboundClient, authnProvider, jwtService, discoveryService)
 	return tokenHandler
 }
 
@@ -53,7 +56,8 @@ func Initialize(
 func registerRoutes(
 	mux *http.ServeMux,
 	tokenHandler TokenHandlerInterface,
-	appService application.ApplicationServiceInterface,
+	inboundClient inboundclient.InboundClientServiceInterface,
+	authnProvider authnprovidermgr.AuthnProviderManagerInterface,
 	jwtService jwt.JWTServiceInterface,
 	discoveryService discovery.DiscoveryServiceInterface,
 ) {
@@ -63,7 +67,8 @@ func registerRoutes(
 		AllowCredentials: true,
 	}
 
-	clientAuthMiddleware := clientauth.ClientAuthMiddleware(appService, jwtService, discoveryService)
+	endpointURL := discoveryService.GetOAuth2AuthorizationServerMetadata(context.Background()).TokenEndpoint
+	clientAuthMiddleware := clientauth.ClientAuthMiddleware(inboundClient, authnProvider, jwtService, endpointURL)
 	handler := clientAuthMiddleware(http.HandlerFunc(tokenHandler.HandleTokenRequest))
 
 	pattern, wrappedHandler := middleware.WithCORS(
