@@ -454,6 +454,17 @@ func validateFlowType(flowTypeStr string) (common.FlowType, *serviceerror.Servic
 	}
 }
 
+	if flowType == common.FlowTypeRecovery {
+			if !app.IsRecoveryFlowEnabled {
+				return "", &ErrorRecoveryFlowDisabled
+			} else if app.RecoveryFlowID == "" {
+				logger.Error("Recovery flow is not configured for the application",
+					log.String("appID", appID))
+				return "", &serviceerror.InternalServerError
+			}
+			return app.RecoveryFlowID, nil
+		}
+
 // isNewFlow checks if the flow is a new flow based on the provided input.
 func isNewFlow(executionID string) bool {
 	return executionID == ""
