@@ -436,6 +436,17 @@ func (s *flowExecService) getFlowGraph(ctx context.Context, appID string, flowTy
 		return app.RegistrationFlowID, nil
 	}
 
+	if flowType == common.FlowTypeRecovery {
+		if !app.IsRecoveryFlowEnabled {
+			return "", &ErrorRecoveryFlowDisabled
+		} else if app.RecoveryFlowID == "" {
+			logger.Error("Recovery flow is not configured for the application",
+				log.String("appID", appID))
+			return "", &serviceerror.InternalServerError
+		}
+		return app.RecoveryFlowID, nil
+	}
+
 	// Default to authentication flow ID
 	if app.AuthFlowID == "" {
 		logger.Error("Authentication flow is not configured for the application",
