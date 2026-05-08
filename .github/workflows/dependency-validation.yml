@@ -62,7 +62,7 @@ jobs:
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}" \
             "engineering-governance/dependency-registry/go.yaml" \
-            "thunder-id"
+            "thunder-id" # Change this scope value according to your repository
 
       - name: Comment on PR - Validation Failed
         if: steps.validate.outcome == 'failure'
