@@ -11,6 +11,10 @@ permissions:
   pull-requests: write
   contents: read
 
+env: 
+  DEPENDENCY_SCOPE: thunder-id # Change this value based on the repository. See https://github.com/wso2/engineering-governance/blob/main/dependency-registry/README.md#available-scopes
+
+
 jobs:
   validate-go-dependencies:
     name: Validate Go Dependencies
@@ -62,7 +66,7 @@ jobs:
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}" \
             "engineering-governance/dependency-registry/go.yaml" \
-            "thunder-id" # Change this scope value according to your repository
+            "${{ env.DEPENDENCY_SCOPE }}"
 
       - name: Comment on PR - Validation Failed
         if: steps.validate.outcome == 'failure'
