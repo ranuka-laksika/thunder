@@ -1,6 +1,6 @@
 ---
 title: Development Pipeline
-description: Understand the development pipeline for contributing code to Thunder.
+description: Understand the development pipeline for contributing code.
 sidebar_position: 3
 hide_table_of_contents: false
 ---
@@ -78,7 +78,7 @@ make test_integration WITHOUT_CONSENT=true
 
 **Using Docker**
 ```bash
-docker build --build-arg WITH_CONSENT=false -t thunder:latest .
+docker build --build-arg WITH_CONSENT=false -t thunderid:latest .
 ```
 
 :::note
@@ -103,7 +103,7 @@ make run WITHOUT_CONSENT=true
 
 **Docker (environment variable)**
 ```bash
-docker run -e WITH_CONSENT=false thunder:latest
+docker run -e WITH_CONSENT=false thunderid:latest
 ```
 :::
 
@@ -210,7 +210,7 @@ make lint
 
 ### Generating Mocks
 
-Thunder uses `mockery` to generate mocks for unit tests.
+<ProductName /> uses `mockery` to generate mocks for unit tests.
 
 **Generate mocks:**
 ```bash
@@ -257,7 +257,7 @@ For developers who want to run frontend components separately without using `mak
 
 ### Installing Dependencies
 
-1. Navigate to the Thunder frontend directory.
+1. Navigate to the <ProductName /> frontend directory.
 
 ```bash
 cd frontend
@@ -284,24 +284,24 @@ pnpm build
 If you have not already created the `Console` application and the default admin user, you can do so by running the following command:
 
 ```bash
-THUNDER_API_BASE="https://localhost:8090" \
+API_BASE="https://localhost:8090" \
   backend/cmd/server/bootstrap/01-default-resources.sh \
   --console-redirect-uris "https://localhost:5191/console"
 ```
 
-### Setting up the Thunder Gate Application
+### Setting up the <ProductName /> Gate Application
 
-1. Point the `gate_client` in `deployment.yaml` to the local Thunder Gate application.
+1. Point the `gate_client` in `deployment.yaml` to the local <ProductName /> Gate application.
 
    - If you are running `make run`, change the `gate_client` section in `backend/cmd/server/repository/conf/deployment.yaml`
-   - If you are running the backend server manually, change the `gate_client` section in `<THUNDER_HOME>/repository/conf/deployment.yaml`
+   - If you are running the backend server manually, change the `gate_client` section in `<THUNDERID_HOME>/repository/conf/deployment.yaml`
 
 ```yaml
 gate_client:
   port: 5190
 ```
 
-2. Add the local development origin of the Thunder Gate application (https://localhost:5190) to the CORS allowed origins in `<THUNDER_HOME>/repository/conf/deployment.yaml`.
+2. Add the local development origin of the <ProductName /> Gate application (https://localhost:5190) to the CORS allowed origins in `<THUNDERID_HOME>/repository/conf/deployment.yaml`.
 
 ```yaml
 cors:
@@ -309,18 +309,18 @@ cors:
     - "https://localhost:5190"
 ```
 
-3. Run the Thunder Gate application.
+3. Run the <ProductName /> Gate application.
 
 ```bash
 cd frontend
-pnpm --filter @thunder/gate dev
+pnpm --filter @thunderid/gate dev
 ```
 
-### Setting up the Thunder Console Application
+### Setting up the <ProductName /> Console Application
 
 **IMPORTANT**: This section assumes that you have already created the `Console` application using the initial data setup script. If not, please refer to the [Seed Data](#seed-data-optional) section above.
 
-1. First, retrieve the application ID of the **Console** application from the Thunder server. This will be the application with the `client_id` **CONSOLE**.
+1. First, retrieve the application ID of the **Console** application from the <ProductName /> server. This will be the application with the `client_id` **CONSOLE**.
 
 ```bash
 curl -k -X GET "https://localhost:8090/applications"
@@ -351,7 +351,7 @@ curl -k -X PUT "https://localhost:8090/applications/<console-application-id>" \
   -d '<paste-the-modified-json-here>'
 ```
 
-5. Add the local development origin of the console application (https://localhost:5191) to the CORS allowed origins in `<THUNDER_HOME>/repository/conf/deployment.yaml`.
+5. Add the local development origin of the console application (https://localhost:5191) to the CORS allowed origins in `<THUNDERID_HOME>/repository/conf/deployment.yaml`.
 
 ```yaml
 cors:
@@ -359,13 +359,13 @@ cors:
     - "https://localhost:5191"
 ```
 
-6. Run the Thunder Console application.
+6. Run the <ProductName /> Console application.
 
 ```bash
-pnpm --filter @thunder/console dev
+pnpm --filter @thunderid/console dev
 ```
 
-This will run the Thunder Console application on `https://localhost:5191/console`.
+This will run the <ProductName /> Console application on `https://localhost:5191/console`.
 
 </details>
 
@@ -432,7 +432,7 @@ Push your changes to your forked repository:
 git push origin <branch-name>
 ```
 
-Then create a Pull Request to the `thunder/main` branch on GitHub:
+Then create a Pull Request to the `upstream/main` branch on GitHub:
 
 1. Go to your fork on GitHub
 2. Click **"Compare & pull request"**

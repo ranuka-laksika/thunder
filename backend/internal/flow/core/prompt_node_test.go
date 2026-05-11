@@ -26,6 +26,8 @@ import (
 	"github.com/asgardeo/thunder/internal/flow/common"
 )
 
+const testEmailAttr = "email"
+
 type PromptOnlyNodeTestSuite struct {
 	suite.Suite
 }
@@ -66,7 +68,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithRequiredData() {
 		{"No user input provided", map[string]string{}, false, 2},
 		{
 			"All required data provided",
-			map[string]string{"username": "testuser", "email": "test@example.com"},
+			map[string]string{"username": "testuser", testEmailAttr: "test@example.com"},
 			true,
 			0,
 		},
@@ -81,7 +83,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithRequiredData() {
 				{
 					Inputs: []common.Input{
 						{Identifier: "username", Required: true},
-						{Identifier: "email", Required: true},
+						{Identifier: testEmailAttr, Required: true},
 					},
 					Action: &common.Action{Ref: "submit", NextNode: "next"},
 				},
@@ -611,7 +613,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithFailureReason_ClearsCurrentActi
 	promptNode.SetPrompts([]common.Prompt{
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Required: true},
+				{Identifier: testEmailAttr, Required: true},
 			},
 			Action: &common.Action{Ref: "submit", NextNode: "next"},
 		},
@@ -621,7 +623,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithFailureReason_ClearsCurrentActi
 		ExecutionID:   "test-flow",
 		CurrentAction: "submit",
 		UserInputs: map[string]string{
-			"email": "existing@example.com",
+			testEmailAttr: "existing@example.com",
 		},
 		RuntimeData: map[string]string{
 			"failureReason": "A user with this email already exists",
@@ -782,7 +784,7 @@ func (s *PromptOnlyNodeTestSuite) TestGetAllInputs() {
 		},
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Required: true},
+				{Identifier: testEmailAttr, Required: true},
 			},
 			Action: &common.Action{Ref: "signup", NextNode: "register_node"},
 		},
@@ -797,7 +799,7 @@ func (s *PromptOnlyNodeTestSuite) TestGetAllInputs() {
 	s.Len(allInputs, 3, "Should return all inputs from all prompts")
 	s.Equal("username", allInputs[0].Identifier)
 	s.Equal("password", allInputs[1].Identifier)
-	s.Equal("email", allInputs[2].Identifier)
+	s.Equal(testEmailAttr, allInputs[2].Identifier)
 }
 
 func (s *PromptOnlyNodeTestSuite) TestGetAllInputsEmpty() {
@@ -827,7 +829,7 @@ func (s *PromptOnlyNodeTestSuite) TestGetAllActions() {
 		},
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Required: true},
+				{Identifier: testEmailAttr, Required: true},
 			},
 			Action: &common.Action{Ref: "reset", NextNode: "reset_node"},
 		},
@@ -855,7 +857,7 @@ func (s *PromptOnlyNodeTestSuite) TestGetAllActionsWithNilAction() {
 		},
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Required: true},
+				{Identifier: testEmailAttr, Required: true},
 			},
 			Action: nil, // No action
 		},
@@ -899,13 +901,13 @@ func (s *PromptOnlyNodeTestSuite) TestGetNextNodeForActionRef() {
 	})
 
 	// Test finding existing actions
-	nextNode := promptNode.getNextNodeForActionRef("login", promptNode.logger)
+	nextNode := promptNode.getNextNodeForActionRef("login")
 	s.Equal("auth_node", nextNode)
 
-	nextNode = promptNode.getNextNodeForActionRef("signup", promptNode.logger)
+	nextNode = promptNode.getNextNodeForActionRef("signup")
 	s.Equal("register_node", nextNode)
 
-	nextNode = promptNode.getNextNodeForActionRef("cancel", promptNode.logger)
+	nextNode = promptNode.getNextNodeForActionRef("cancel")
 	s.Equal("exit_node", nextNode)
 }
 
@@ -924,7 +926,7 @@ func (s *PromptOnlyNodeTestSuite) TestGetNextNodeForActionRefNotFound() {
 	})
 
 	// Test finding non-existent action
-	nextNode := promptNode.getNextNodeForActionRef("nonexistent", promptNode.logger)
+	nextNode := promptNode.getNextNodeForActionRef("nonexistent")
 	s.Equal("", nextNode, "Should return empty string when action not found")
 }
 
@@ -940,7 +942,7 @@ func (s *PromptOnlyNodeTestSuite) TestGetNextNodeForActionRefEmptyRef() {
 	})
 
 	// Test with empty action ref
-	nextNode := promptNode.getNextNodeForActionRef("", promptNode.logger)
+	nextNode := promptNode.getNextNodeForActionRef("")
 	s.Equal("", nextNode, "Should return empty string for empty action ref")
 }
 
@@ -1081,14 +1083,15 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataNoMatch() {
 		},
 	})
 
-	// ForwardedData has inputs but different Identifier
+	// ForwardedData has an input with a different Identifier — it is a schema-derived input
+	// that is not in the node's prompt definition, so it gets appended to the response.
 	ctx := &NodeContext{
 		ExecutionID: "test-flow",
 		UserInputs:  map[string]string{},
 		ForwardedData: map[string]interface{}{
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
-					Identifier: "userType", // Different identifier
+					Identifier: "userType",
 					Options:    []string{"option1", "option2"},
 				},
 			},
@@ -1098,12 +1101,53 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataNoMatch() {
 
 	s.Nil(err)
 	s.NotNil(resp)
-	s.Len(resp.Inputs, 1)
+	// username (from prompt) + userType (schema-derived from ForwardedData) are both missing
+	s.Len(resp.Inputs, 2)
 
-	// Verify prompt input is unchanged since no match
-	promptInput := resp.Inputs[0]
-	s.Equal("username", promptInput.Identifier)
-	s.Empty(promptInput.Options, "Options should remain empty when no matching forwarded input")
+	inputMap := make(map[string]common.Input, len(resp.Inputs))
+	for _, inp := range resp.Inputs {
+		inputMap[inp.Identifier] = inp
+	}
+	s.Contains(inputMap, "username", "prompt-defined input must be present")
+	s.Empty(inputMap["username"].Options, "username Options should remain empty")
+	s.Contains(inputMap, "userType", "schema-derived input must be appended")
+	s.ElementsMatch([]string{"option1", "option2"}, inputMap["userType"].Options,
+		"forwarded options must be propagated to the appended input")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataSchemaInputSkippedWhenScalarResolved() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	promptNode := node.(PromptNodeInterface)
+	promptNode.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{
+				{Identifier: "username", Required: true},
+			},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	// ForwardedDataKeyInputs lists "userType" as a schema-derived input, but
+	// ForwardedData also carries a resolved scalar string for "userType". The
+	// scalar wins: the input must NOT be re-appended to the response.
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{"username": "alice"},
+		ForwardedData: map[string]interface{}{
+			"userType": "customer",
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "userType", Options: []string{"customer", "admin"}},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	for _, inp := range resp.Inputs {
+		s.NotEqual("userType", inp.Identifier,
+			"schema-derived input must be skipped when a scalar value is already forwarded")
+	}
 }
 
 func (s *PromptOnlyNodeTestSuite) TestExecuteWithNoForwardedData() {
@@ -1157,6 +1201,7 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataMultipleInputs() {
 			common.ForwardedDataKeyInputs: []common.Input{
 				{
 					Identifier: "userType",
+					Type:       "SELECT",
 					Options:    []string{"employee", "customer"},
 				},
 			},
@@ -1262,13 +1307,14 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataPreservesPromptFie
 	s.NotNil(resp)
 	s.Len(resp.Inputs, 1)
 
-	// Verify only Options is enriched, other fields preserved from prompt definition
+	// Verify prompt definition fields are preserved; options are NOT enriched because the
+	// forwarded input type ("DIFFERENT_TYPE") does not match the node input type ("SELECT").
 	enrichedInput := resp.Inputs[0]
 	s.Equal("usertype_input_custom", enrichedInput.Ref, "Ref should NOT be overwritten")
 	s.Equal("userType", enrichedInput.Identifier)
 	s.Equal("SELECT", enrichedInput.Type, "Type should NOT be overwritten")
 	s.True(enrichedInput.Required, "Required should NOT be overwritten")
-	s.ElementsMatch([]string{"option1"}, enrichedInput.Options, "Only Options should be enriched")
+	s.Empty(enrichedInput.Options, "Options should NOT be enriched when forwarded type does not match")
 }
 
 func (s *PromptOnlyNodeTestSuite) TestExecuteWithForwardedDataEmptyOptions() {
@@ -1570,7 +1616,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_SkipsInputInRuntimeDat
 	promptNode.SetPrompts([]common.Prompt{
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 				{Identifier: "username", Ref: "input_username", Required: true},
 			},
 			Action: &common.Action{Ref: "submit", NextNode: "next"},
@@ -1581,7 +1627,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_SkipsInputInRuntimeDat
 		ExecutionID:   "test-flow",
 		CurrentAction: "submit",
 		UserInputs:    map[string]string{},
-		RuntimeData:   map[string]string{"email": "user@example.com"},
+		RuntimeData:   map[string]string{testEmailAttr: "user@example.com"},
 	}
 	resp, err := node.Execute(ctx)
 
@@ -1598,7 +1644,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_SkipsInputInForwardedD
 	promptNode.SetPrompts([]common.Prompt{
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 				{Identifier: "username", Ref: "input_username", Required: true},
 			},
 			Action: &common.Action{Ref: "submit", NextNode: "next"},
@@ -1609,7 +1655,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_SkipsInputInForwardedD
 		ExecutionID:   "test-flow",
 		CurrentAction: "submit",
 		UserInputs:    map[string]string{},
-		ForwardedData: map[string]interface{}{"email": "user@example.com"},
+		ForwardedData: map[string]interface{}{testEmailAttr: "user@example.com"},
 	}
 	resp, err := node.Execute(ctx)
 
@@ -1626,7 +1672,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_DoesNotSkipForwardedDa
 	promptNode.SetPrompts([]common.Prompt{
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 			},
 			Action: &common.Action{Ref: "submit", NextNode: "next"},
 		},
@@ -1637,7 +1683,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_DoesNotSkipForwardedDa
 		CurrentAction: "submit",
 		UserInputs:    map[string]string{},
 		ForwardedData: map[string]interface{}{
-			"email": []common.Input{{Identifier: "email"}},
+			testEmailAttr: []common.Input{{Identifier: testEmailAttr}},
 		},
 	}
 	resp, err := node.Execute(ctx)
@@ -1654,7 +1700,7 @@ func (s *PromptOnlyNodeTestSuite) TestAppendMissingInputs_RuntimeDataDoesNotAffe
 	promptNode.SetPrompts([]common.Prompt{
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 				{Identifier: "username", Ref: "input_username", Required: true},
 			},
 			Action: &common.Action{Ref: "submit", NextNode: "next"},
@@ -1680,7 +1726,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_PartialInputSet() {
 		"components": []interface{}{
 			map[string]interface{}{"type": "TEXT", "id": "heading"},
 			map[string]interface{}{
-				"type": "BLOCK",
+				"type": common.MetaComponentTypeBlock,
 				"id":   "form_block",
 				"components": []interface{}{
 					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_given_name"},
@@ -1700,7 +1746,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_PartialInputSet() {
 			Inputs: []common.Input{
 				{Identifier: "given_name", Ref: "input_given_name", Required: true},
 				{Identifier: "family_name", Ref: "input_family_name", Required: true},
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 			},
 			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
 		},
@@ -1709,7 +1755,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_PartialInputSet() {
 	ctx := &NodeContext{
 		ExecutionID: "test-flow",
 		UserInputs:  map[string]string{},
-		RuntimeData: map[string]string{"email": "user@example.com"},
+		RuntimeData: map[string]string{testEmailAttr: "user@example.com"},
 		Verbose:     true,
 	}
 	resp, err := node.Execute(ctx)
@@ -1753,7 +1799,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_AllInputsMissing() {
 		"components": []interface{}{
 			map[string]interface{}{"type": "TEXT", "id": "heading"},
 			map[string]interface{}{
-				"type": "BLOCK",
+				"type": common.MetaComponentTypeBlock,
 				"id":   "form_block",
 				"components": []interface{}{
 					map[string]interface{}{"type": "TEXT_INPUT", "id": "input_given_name"},
@@ -1773,7 +1819,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_AllInputsMissing() {
 			Inputs: []common.Input{
 				{Identifier: "given_name", Ref: "input_given_name", Required: true},
 				{Identifier: "family_name", Ref: "input_family_name", Required: true},
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 			},
 			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
 		},
@@ -1874,7 +1920,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_DisabledWhenVerboseFal
 	pn.SetPrompts([]common.Prompt{
 		{
 			Inputs: []common.Input{
-				{Identifier: "email", Ref: "input_email", Required: true},
+				{Identifier: testEmailAttr, Ref: "input_email", Required: true},
 				{Identifier: "username", Ref: "input_username", Required: true},
 			},
 			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
@@ -1885,7 +1931,7 @@ func (s *PromptOnlyNodeTestSuite) TestVerboseMetaTrimming_DisabledWhenVerboseFal
 	ctx := &NodeContext{
 		ExecutionID: "test-flow",
 		UserInputs:  map[string]string{},
-		RuntimeData: map[string]string{"email": "user@example.com"},
+		RuntimeData: map[string]string{testEmailAttr: "user@example.com"},
 		Verbose:     false,
 	}
 	resp, err := node.Execute(ctx)
@@ -1954,4 +2000,1281 @@ func (s *PromptOnlyNodeTestSuite) TestExecuteActionTypeForwarding_NoTypeField() 
 			s.Empty(actionType, "Action type should be empty when not defined")
 		}
 	}
+}
+
+// ── enrichInputsFromForwardedData — schema-derived input injection ────────────
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_AddsInputNotInNodeResponse() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	// No prompt inputs configured — the schema-derived input comes only from ForwardedData.
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true, DisplayName: "Email Address"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Inputs, 1)
+	s.Equal(testEmailAttr, resp.Inputs[0].Identifier)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_DoesNotDuplicateExistingInput() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Identifier: testEmailAttr, Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	emailCount := 0
+	for _, inp := range resp.Inputs {
+		if inp.Identifier == testEmailAttr {
+			emailCount++
+		}
+	}
+	s.Equal(1, emailCount, "email must appear exactly once, not duplicated from ForwardedData")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_MixedNewAndExisting() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Identifier: "username", Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "username", Required: true},
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+
+	identifiers := make(map[string]int)
+	for _, inp := range resp.Inputs {
+		identifiers[inp.Identifier]++
+	}
+	s.Equal(1, identifiers["username"], "username must appear exactly once")
+	s.Equal(1, identifiers[testEmailAttr], "email (schema-derived) must be appended once")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_NilForwardedData_NoChange() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Identifier: "username", Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: nil,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.Len(resp.Inputs, 1)
+	s.Equal("username", resp.Inputs[0].Identifier)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_UpdatesRequiredFlag() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Identifier: "email", Type: "TEXT_INPUT", Required: false}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "email", Type: "TEXT_INPUT", Required: true},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().Len(resp.Inputs, 1)
+	s.True(resp.Inputs[0].Required, "required flag must be promoted to true by ForwardedData")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_PropagatesSelectOptions() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Identifier: "role", Type: common.InputTypeSelect, Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "role", Type: common.InputTypeSelect, Required: true, Options: []string{"admin", "user"}},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().Len(resp.Inputs, 1)
+	s.Equal([]string{"admin", "user"}, resp.Inputs[0].Options, "options must be propagated from ForwardedData")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestHasRequiredInputs_UnknownActionFallsBackToAllInputs() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Identifier: testInputName, Type: "TEXT_INPUT", Required: true}},
+			Action: &common.Action{Ref: "known_action", NextNode: "next"},
+		},
+	})
+
+	// CurrentAction is set but does not match any prompt action.
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "unknown_action",
+		UserInputs:    map[string]string{},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().NotNil(resp)
+	// Falls back to all inputs — username must be in the response.
+	found := false
+	for _, inp := range resp.Inputs {
+		if inp.Identifier == testInputName {
+			found = true
+		}
+	}
+	s.True(found, "when action is unknown, all prompt inputs must be requested")
+}
+
+// ── appendSyntheticMetaComponents — meta synthesis ───────────────────────────
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_CreatedForSchemaInputWithDisplayName() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"id": "input_username", "type": "TEXT_INPUT"},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Ref: "input_username", Identifier: "username", Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		Verbose:       true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true, DisplayName: "Email Address"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+
+	// No BLOCK in original meta — synthetic input must be inside a generated BLOCK.
+	var emailComp map[string]interface{}
+	for _, c := range comps {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if cm["type"] == common.MetaComponentTypeBlock {
+			for _, child := range cm["components"].([]interface{}) {
+				if childMap, ok := child.(map[string]interface{}); ok && childMap["id"] == testEmailAttr {
+					emailComp = childMap
+				}
+			}
+		}
+	}
+	s.Require().NotNil(emailComp, "synthetic component for email should be present inside a BLOCK")
+	s.Equal("Email Address", emailComp["label"], "label should use DisplayName")
+	s.Equal("TEXT_INPUT", emailComp["type"], "type should match input.Type, not a generic INPUT string")
+	s.Equal(testEmailAttr, emailComp["ref"], "ref should be set to the identifier")
+	s.Equal(true, emailComp["required"], "required should be propagated")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_FallsBackToIdentifierWhenNoDisplayName() {
+	meta := map[string]interface{}{
+		"components": []interface{}{},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	// No prompt inputs — schema-derived input comes from ForwardedData
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true, DisplayName: ""},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+	s.Require().Len(comps, 1, "a single generated BLOCK should be present at the top level")
+
+	block, ok := comps[0].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal(common.MetaComponentTypeBlock, block["type"], "synthetic inputs must be wrapped in a BLOCK")
+	blockChildren, ok := block["components"].([]interface{})
+	s.Require().True(ok)
+	s.Require().Len(blockChildren, 1)
+
+	comp := blockChildren[0].(map[string]interface{})
+	s.Equal(testEmailAttr, comp["label"], "label must fall back to Identifier when DisplayName is empty")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_NotAddedWhenMetaComponentAlreadyExists() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"id": testEmailAttr, "type": "TEXT_INPUT", "label": "E-mail"},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Ref: testEmailAttr, Identifier: testEmailAttr, Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		Verbose:       true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true, DisplayName: "Email Address"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+
+	emailCount := 0
+	for _, c := range comps {
+		if cm, ok := c.(map[string]interface{}); ok && cm["id"] == testEmailAttr {
+			emailCount++
+		}
+	}
+	s.Equal(1, emailCount, "email component must not be duplicated when it already exists in meta")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_NotAddedWhenMetaComponentExistsByRef() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"id": "input_email", "ref": testEmailAttr, "type": "TEXT_INPUT", "label": "E-mail"},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true, DisplayName: "Email Address"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+
+	emailCount := 0
+	for _, c := range comps {
+		if cm, ok := c.(map[string]interface{}); ok {
+			if cm["ref"] == testEmailAttr || cm["id"] == testEmailAttr {
+				emailCount++
+			}
+		}
+	}
+	s.Equal(1, emailCount, "email component must not be duplicated when meta component ref matches identifier")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_ExistingComponentPromotedToPasswordType() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"id":       "input_pin",
+				"ref":      "pin",
+				"type":     "TEXT_INPUT",
+				"label":    "PIN",
+				"required": false,
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Ref: "pin", Identifier: "pin", Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		Verbose:       true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "pin", Type: common.InputTypePassword, Required: true, DisplayName: "PIN"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	s.NotNil(resp.Meta)
+	s.Require().Len(resp.Inputs, 1)
+	s.Equal(common.InputTypePassword, resp.Inputs[0].Type)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+	s.Require().Len(comps, 1)
+
+	comp, ok := comps[0].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal(common.InputTypePassword, comp["type"], "existing meta component must be promoted to password type")
+	s.Equal(true, comp["required"], "existing meta component must reflect promoted required flag")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_PromotionDoesNotMutateSharedMeta() {
+	original := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"id":       "input_pin",
+				"ref":      "pin",
+				"type":     "TEXT_INPUT",
+				"required": false,
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(original)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Ref: "pin", Identifier: "pin", Required: true}},
+			Action: &common.Action{Ref: "submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		CurrentAction: "submit",
+		UserInputs:    map[string]string{},
+		Verbose:       true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "pin", Type: common.InputTypePassword, Required: true},
+			},
+		},
+	}
+
+	_, err := node.Execute(ctx)
+	s.Require().Nil(err)
+
+	// The original meta map must be untouched after the first execution.
+	origComps, _ := original["components"].([]interface{})
+	origComp, _ := origComps[0].(map[string]interface{})
+	s.Equal("TEXT_INPUT", origComp["type"], "original meta component type must not be mutated by promotion")
+	s.Equal(false, origComp["required"], "original meta component required must not be mutated by promotion")
+
+	// A second execution must still see the correct (unpromoted) original.
+	resp2, err := node.Execute(ctx)
+	s.Require().Nil(err)
+	metaMap, _ := resp2.Meta.(map[string]interface{})
+	comps, _ := metaMap["components"].([]interface{})
+	s.Require().Len(comps, 1)
+	comp, _ := comps[0].(map[string]interface{})
+	s.Equal(common.InputTypePassword, comp["type"], "second execution must still promote the type correctly")
+	s.Equal(true, comp["required"], "second execution must still promote required correctly")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_InsertedInsideBlockBeforeAction() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"id": "image", "type": "IMAGE"},
+			map[string]interface{}{
+				"id":   "block_schema",
+				"type": common.MetaComponentTypeBlock,
+				"components": []interface{}{
+					map[string]interface{}{"id": "action_submit", "type": "ACTION", "ref": "action_submit"},
+				},
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{},
+			Action: &common.Action{Ref: "action_submit", NextNode: "provisioning"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "mobileNumber", Type: "TEXT_INPUT", Required: true, DisplayName: "Mobile Number"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	topComps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+	s.Len(topComps, 2, "top-level component count must not change — synthetic input goes inside the BLOCK")
+
+	// Find the BLOCK and inspect its children.
+	var blockChildren []interface{}
+	for _, c := range topComps {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if cm["type"] == common.MetaComponentTypeBlock {
+			blockChildren, _ = cm["components"].([]interface{})
+		}
+	}
+	s.Require().Len(blockChildren, 2, "BLOCK must contain the synthetic input and the original action")
+
+	inputComp, ok := blockChildren[0].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal("mobileNumber", inputComp["id"], "synthetic input must be first — before the ACTION")
+	s.Equal("TEXT_INPUT", inputComp["type"])
+	s.Equal("mobileNumber", inputComp["ref"])
+	s.Equal("Mobile Number", inputComp["label"])
+	s.Equal(true, inputComp["required"])
+
+	actionComp, ok := blockChildren[1].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal("ACTION", actionComp["type"], "ACTION must remain after the synthetic input")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_PlaceholderReplacedWithSyntheticInputs() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"id":   "block_dynamic",
+				"type": common.MetaComponentTypeBlock,
+				"components": []interface{}{
+					map[string]interface{}{
+						"id":   "dynamic_inputs",
+						"type": common.MetaComponentTypeDynamicInputPlaceholder,
+					},
+					map[string]interface{}{"id": "action_submit", "type": "ACTION", "ref": "action_submit"},
+				},
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true, DisplayName: "Email"},
+				{Identifier: "given_name", Type: "TEXT_INPUT", Required: true, DisplayName: "First Name"},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	topComps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+	s.Len(topComps, 1)
+
+	block, ok := topComps[0].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal(common.MetaComponentTypeBlock, block["type"])
+
+	children, ok := block["components"].([]interface{})
+	s.Require().True(ok)
+	// placeholder replaced by 2 synthetic inputs + 1 action = 3 total
+	s.Require().Len(children, 3, "placeholder must be replaced by synthetic inputs; ACTION remains at end")
+
+	// No placeholder in final output.
+	for _, c := range children {
+		if cm, ok := c.(map[string]interface{}); ok {
+			s.NotEqual(common.MetaComponentTypeDynamicInputPlaceholder, cm["type"],
+				"placeholder must not appear in the final meta")
+		}
+	}
+
+	email, ok := children[0].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal(testEmailAttr, email["id"])
+	s.Equal("Email", email["label"])
+
+	action, ok := children[2].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal("ACTION", action["type"], "ACTION must stay after synthetic inputs")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_PlaceholderStrippedWhenNoSyntheticInputs() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"id":   "block_dynamic",
+				"type": common.MetaComponentTypeBlock,
+				"components": []interface{}{
+					map[string]interface{}{
+						"id":   "dynamic_inputs",
+						"type": common.MetaComponentTypeDynamicInputPlaceholder,
+					},
+					map[string]interface{}{"id": "action_submit", "type": "ACTION", "ref": "action_submit"},
+				},
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	// No ForwardedData inputs — no synthetic inputs will be generated.
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	topComps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+
+	block, ok := topComps[0].(map[string]interface{})
+	s.Require().True(ok)
+	children, ok := block["components"].([]interface{})
+	s.Require().True(ok)
+	// placeholder removed, only ACTION remains
+	s.Require().Len(children, 1, "placeholder must be stripped even when there are no synthetic inputs")
+	action, ok := children[0].(map[string]interface{})
+	s.Require().True(ok)
+	s.Equal("ACTION", action["type"])
+	for _, c := range children {
+		if cm, ok := c.(map[string]interface{}); ok {
+			s.NotEqual(common.MetaComponentTypeDynamicInputPlaceholder, cm["type"],
+				"placeholder must never appear in the final meta")
+		}
+	}
+}
+
+func (s *PromptOnlyNodeTestSuite) TestFilterMetaComponents_NonMapComponentPassedThrough() {
+	// filterMetaComponents is exercised via trimMetaToRequestedInputs in verbose mode.
+	// A non-map element (plain string) in the components list covers the !ok branch
+	// that passes non-map items through unchanged. The node must be in an incomplete
+	// state (no action selected, required input missing) so that meta is rendered.
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			"plain-string-component",
+			map[string]interface{}{
+				"id":   "block_inputs",
+				"type": common.MetaComponentTypeBlock,
+				"components": []interface{}{
+					map[string]interface{}{"id": "input_username", "ref": "input_username", "type": "TEXT_INPUT"},
+					map[string]interface{}{"id": "action_submit", "type": "ACTION", "ref": "action_submit"},
+				},
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Ref: "input_username", Identifier: "username", Required: true}},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	// No action selected + required input missing → node is INCOMPLETE → meta rendered.
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+	found := false
+	for _, c := range comps {
+		if str, ok := c.(string); ok && str == "plain-string-component" {
+			found = true
+		}
+	}
+	s.True(found, "non-map components must pass through filterMetaComponents unchanged")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_SkipsInputAlreadyInUserInputs() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{testEmailAttr: "user@example.com"},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true},
+				{Identifier: "username", Type: "TEXT_INPUT", Required: true},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	for _, inp := range resp.Inputs {
+		s.NotEqual(testEmailAttr, inp.Identifier,
+			"email already in UserInputs must not appear in missing inputs")
+	}
+	identifiers := make(map[string]bool)
+	for _, inp := range resp.Inputs {
+		identifiers[inp.Identifier] = true
+	}
+	s.True(identifiers["username"], "username not in UserInputs must be appended")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestEnrichInputsFromForwardedData_SkipsInputAlreadyInRuntimeData() {
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{testEmailAttr: "user@example.com"},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: testEmailAttr, Type: "TEXT_INPUT", Required: true},
+				{Identifier: "username", Type: "TEXT_INPUT", Required: true},
+			},
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp)
+	for _, inp := range resp.Inputs {
+		s.NotEqual(testEmailAttr, inp.Identifier,
+			"email already in RuntimeData must not appear in missing inputs")
+	}
+}
+
+func (s *PromptOnlyNodeTestSuite) TestSyntheticMeta_EmptyInputType_FallsBackToText() {
+	meta := map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{
+				"id":   "block_inputs",
+				"type": common.MetaComponentTypeBlock,
+				"components": []interface{}{
+					map[string]interface{}{
+						"id":   "dynamic_inputs",
+						"type": common.MetaComponentTypeDynamicInputPlaceholder,
+					},
+					map[string]interface{}{"id": "action_submit", "type": "ACTION", "ref": "action_submit"},
+				},
+			},
+		},
+	}
+	node := newPromptNode("prompt-1", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetMeta(meta)
+	pn.SetPrompts([]common.Prompt{
+		{
+			Inputs: []common.Input{{Ref: "input_email", Identifier: testEmailAttr, Required: true}},
+			Action: &common.Action{Ref: "action_submit", NextNode: "next"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		ForwardedData: map[string]interface{}{
+			common.ForwardedDataKeyInputs: []common.Input{
+				{Identifier: "schemaField", Type: "", Required: true, DisplayName: "Schema Field"},
+			},
+		},
+		Verbose: true,
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	comps, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+
+	for _, comp := range comps {
+		blockMap, ok := comp.(map[string]interface{})
+		if !ok || blockMap["type"] != common.MetaComponentTypeBlock {
+			continue
+		}
+		inner, ok := blockMap["components"].([]interface{})
+		s.Require().True(ok)
+		for _, ic := range inner {
+			icMap, ok := ic.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if icMap["ref"] == "schemaField" {
+				s.Equal(common.InputTypeText, icMap["type"],
+					"empty input type must fall back to TEXT")
+				return
+			}
+		}
+	}
+	s.Fail("synthetic component for schemaField not found in meta")
+}
+
+func loginOptionsProps() map[string]interface{} {
+	return map[string]interface{}{
+		common.NodePropertyAuthMethodMapping: map[string]interface{}{
+			"urn:thunder:acr:password":       "pwd",
+			"urn:thunder:acr:generated-code": "otp",
+			"urn:thunder:acr:linked-wallet":  "wallet",
+		},
+	}
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_GetSetVariant() {
+	node := newPromptNode("login-chooser", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+
+	s.Equal(common.NodeVariant(""), pn.GetVariant())
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	s.Equal(common.NodeVariantLoginOptions, pn.GetVariant())
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_NoACRFilter_AllActionsReturned() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	// No requested_acr_values in RuntimeData → all actions returned
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Len(resp.Actions, 2)
+	refs := []string{resp.Actions[0].Ref, resp.Actions[1].Ref}
+	s.ElementsMatch([]string{"pwd", "otp"}, refs)
+	// On the prompt-out leg, allowed_login_options should record the action refs.
+	s.NotEmpty(resp.RuntimeData[common.RuntimeKeyAllowedLoginOptions],
+		"allowed_login_options must be set on the prompt-out leg")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_SingleACRFilter() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+		{Action: &common.Action{Ref: "wallet", NextNode: "wallet-node"}},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusComplete, resp.Status,
+		"login_options node must auto-select when only one ACR option remains after filtering")
+	s.Equal("otp-node", resp.NextNodeID, "must forward to the next node for the auto-selected action")
+	s.Empty(resp.Actions, "chooser actions must not be returned after auto-selection")
+	s.Equal("otp", ctx.CurrentAction, "context must have the auto-selected action")
+	s.Equal("urn:thunder:acr:generated-code", resp.RuntimeData[common.RuntimeKeySelectedAuthClass],
+		"selected_auth_class must be recorded for the auto-selected ACR")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_PreferenceOrder() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	// Graph order: password first, then OTP
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	// Preference order: OTP first, then password
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code urn:thunder:acr:password",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().Len(resp.Actions, 2)
+	s.Equal("otp", resp.Actions[0].Ref, "OTP should be first per preference order")
+	s.Equal("pwd", resp.Actions[1].Ref, "password should be second per preference order")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_UntaggedPromptsAlwaysIncluded() {
+	// authMethodMapping covers only "pwd"; "other" is not gated by ACR and should always appear.
+	node := newPromptNode("login-chooser", map[string]interface{}{
+		common.NodePropertyAuthMethodMapping: map[string]interface{}{
+			"urn:thunder:acr:password": "pwd",
+		},
+	}, false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		// Action ref not in authMethodMapping — non-ACR-gated, should always be included
+		{Action: &common.Action{Ref: "other", NextNode: "other-node"}},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{
+			// Only password requested; non-gated prompt should still appear
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:password",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().Len(resp.Actions, 2)
+	refs := []string{resp.Actions[0].Ref, resp.Actions[1].Ref}
+	s.Contains(refs, "pwd")
+	s.Contains(refs, "other")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_GracefulFallback_NoMatchingACR() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	// Requested ACR not present in any prompt → graceful fallback returns all
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:biometrics",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().Len(resp.Actions, 2, "all prompts should be returned as fallback")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_CompletedACRWritten() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		UserInputs:    map[string]string{},
+		CurrentAction: "pwd",
+		RuntimeData:   map[string]string{},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	s.Equal("pwd-node", resp.NextNodeID)
+	s.Equal("urn:thunder:acr:password", resp.RuntimeData[common.RuntimeKeySelectedAuthClass])
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_CompletedACRWritten_WithACRFilter() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	// Only OTP requested; user picks otp
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		UserInputs:    map[string]string{},
+		CurrentAction: "otp",
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code",
+			common.RuntimeKeyAllowedLoginOptions:  "otp",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusComplete, resp.Status)
+	s.Equal("otp-node", resp.NextNodeID)
+	s.Equal("urn:thunder:acr:generated-code", resp.RuntimeData[common.RuntimeKeySelectedAuthClass])
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_DisallowedActionRejected() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	// Allowed list (from a prior prompt-out leg) restricts to "otp" only.
+	ctx := &NodeContext{
+		ExecutionID:   "test-flow",
+		UserInputs:    map[string]string{},
+		CurrentAction: "pwd",
+		RuntimeData: map[string]string{
+			common.RuntimeKeyAllowedLoginOptions: "otp",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusFailure, resp.Status,
+		"selecting an action outside allowed_login_options must fail")
+	s.Equal("Invalid action selected", resp.FailureReason)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestLoginOptionsVariant_AllowedLoginOptionsCaptured() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(PromptNodeInterface)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+		{Action: &common.Action{Ref: "wallet", NextNode: "wallet-node"}},
+	})
+
+	// Two requested ACRs ⇒ two allowed options on the prompt-out leg.
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code urn:thunder:acr:password",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Equal("otp pwd", resp.RuntimeData[common.RuntimeKeyAllowedLoginOptions],
+		"allowed_login_options must list refs in ACR-preference order")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestNonLoginOptionsVariant_UnaffectedByACRValues() {
+	node := newPromptNode("standard-prompt", map[string]interface{}{}, false, false)
+	pn := node.(PromptNodeInterface)
+	// No variant set
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	// Both actions must be returned — no filtering for non-login_options nodes
+	s.Nil(err)
+	s.Require().Len(resp.Actions, 2)
+	s.Empty(resp.RuntimeData[common.RuntimeKeyAllowedLoginOptions],
+		"allowed_login_options must not be set for non-login_options nodes")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestFilteredMeta_ActionComponentsReorderedByACR() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(*promptNode)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	// Graph order: password, otp, wallet
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+		{Action: &common.Action{Ref: "wallet", NextNode: "wallet-node"}},
+	})
+	pn.SetMeta(map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "ACTION", "id": "pwd"},
+			map[string]interface{}{"type": "ACTION", "id": "otp"},
+			map[string]interface{}{"type": "ACTION", "id": "wallet"},
+		},
+	})
+
+	// ACR preference: otp first, then wallet, then password
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code " +
+				"urn:thunder:acr:linked-wallet " + "urn:thunder:acr:password",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusIncomplete, resp.Status)
+	s.Require().NotNil(resp.Meta)
+
+	metaMap, ok := resp.Meta.(map[string]interface{})
+	s.Require().True(ok)
+	components, ok := metaMap["components"].([]interface{})
+	s.Require().True(ok)
+	s.Require().Len(components, 3)
+
+	ids := make([]string, 3)
+	for i, c := range components {
+		ids[i], _ = c.(map[string]interface{})["id"].(string)
+	}
+	s.Equal([]string{"otp", "wallet", "pwd"}, ids, "ACTION components should follow ACR preference order")
+}
+
+func (s *PromptOnlyNodeTestSuite) TestFilteredMeta_NonActionComponentsRetainPosition() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(*promptNode)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+	})
+	pn.SetMeta(map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "TEXT", "id": "heading"},
+			map[string]interface{}{"type": "ACTION", "id": "pwd"},
+			map[string]interface{}{"type": "DIVIDER", "id": "div1"},
+			map[string]interface{}{"type": "ACTION", "id": "otp"},
+			map[string]interface{}{"type": "TEXT", "id": "footer"},
+		},
+	})
+
+	// Preference: otp first, then password
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code urn:thunder:acr:password",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Require().NotNil(resp.Meta)
+
+	metaMap := resp.Meta.(map[string]interface{})
+	components := metaMap["components"].([]interface{})
+	s.Require().Len(components, 5)
+
+	ids := make([]string, 5)
+	for i, c := range components {
+		ids[i], _ = c.(map[string]interface{})["id"].(string)
+	}
+	// Non-ACTION components stay; ACTION slots are filled in ACR preference order
+	s.Equal([]string{"heading", "otp", "div1", "pwd", "footer"}, ids)
+}
+
+func (s *PromptOnlyNodeTestSuite) TestFilteredMeta_FilteredOutActionsDropped() {
+	node := newPromptNode("login-chooser", loginOptionsProps(), false, false)
+	pn := node.(*promptNode)
+	pn.SetVariant(common.NodeVariantLoginOptions)
+	pn.SetPrompts([]common.Prompt{
+		{Action: &common.Action{Ref: "pwd", NextNode: "pwd-node"}},
+		{Action: &common.Action{Ref: "otp", NextNode: "otp-node"}},
+		{Action: &common.Action{Ref: "wallet", NextNode: "wallet-node"}},
+	})
+	pn.SetMeta(map[string]interface{}{
+		"components": []interface{}{
+			map[string]interface{}{"type": "ACTION", "id": "pwd"},
+			map[string]interface{}{"type": "ACTION", "id": "otp"},
+			map[string]interface{}{"type": "ACTION", "id": "wallet"},
+		},
+	})
+
+	ctx := &NodeContext{
+		ExecutionID: "test-flow",
+		UserInputs:  map[string]string{},
+		Verbose:     true,
+		RuntimeData: map[string]string{
+			common.RuntimeKeyRequestedAuthClasses: "urn:thunder:acr:generated-code",
+		},
+	}
+	resp, err := node.Execute(ctx)
+
+	s.Nil(err)
+	s.Equal(common.NodeStatusComplete, resp.Status,
+		"single ACR filter must trigger auto-selection and complete the node")
+	s.Equal("otp-node", resp.NextNodeID)
+	s.Nil(resp.Meta, "meta is not returned for a completed (auto-selected) chooser node")
 }

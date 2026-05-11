@@ -6,11 +6,11 @@ description: Advanced documentation development techniques including custom comp
 
 # Advanced Documentation Topics
 
-This guide covers advanced topics for Thunder documentation development, including custom React components, Docusaurus plugins, and deployment strategies.
+This guide covers advanced topics for <ProductName /> documentation development, including custom React components, Docusaurus plugins, and deployment strategies.
 
 ## Creating Custom Components
 
-To create new custom components for Thunder documentation:
+To create new custom components for <ProductName /> documentation:
 
 1. **Create the component** in `docs/src/components/`:
 
@@ -173,7 +173,7 @@ Edit `docs/docusaurus.config.ts` for global settings:
 import type {Config} from '@docusaurus/types';
 
 const config: Config = {
-  title: 'Thunder Documentation',
+  title: '{{ProductName}} Documentation',
   tagline: 'Identity and Access Management',
   favicon: 'img/favicon.ico',
   url: 'https://your-domain.com',
@@ -181,7 +181,7 @@ const config: Config = {
   
   // GitHub Pages deployment
   organizationName: 'asgardeo',
-  projectName: 'thunder',
+  projectName: '{{productSlug}}',
   
   // Internationalization
   i18n: {
@@ -197,7 +197,7 @@ const config: Config = {
         docs: {
           routeBasePath: '/',
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/asgardeo/thunder/tree/main/docs/',
+          editUrl: 'https://github.com/thunder-id/thunder-id/tree/main/docs/',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -216,9 +216,9 @@ export default config;
 themeConfig: {
   // Navbar
   navbar: {
-    title: 'Thunder',
+    title: '{{ProductName}}',
     logo: {
-      alt: 'Thunder Logo',
+      alt: '{{ProductName}} Logo',
       src: 'img/logo.svg',
     },
     items: [
@@ -229,7 +229,7 @@ themeConfig: {
         label: 'Guides',
       },
       {
-        href: 'https://github.com/asgardeo/thunder',
+        href: 'https://github.com/thunder-id/thunder-id',
         label: 'GitHub',
         position: 'right',
       },
@@ -261,7 +261,7 @@ themeConfig: {
   algolia: {
     appId: 'YOUR_APP_ID',
     apiKey: 'YOUR_SEARCH_API_KEY',
-    indexName: 'thunder',
+    indexName: '{{productSlug}}',
   },
 },
 ```
@@ -389,7 +389,7 @@ For production sites, use Algolia DocSearch:
 algolia: {
   appId: 'YOUR_APP_ID',
   apiKey: 'YOUR_SEARCH_API_KEY',
-  indexName: 'thunder',
+  indexName: '{{productSlug}}',
   contextualSearch: true,
   searchParameters: {},
   searchPagePath: 'search',
@@ -570,8 +570,8 @@ CMD ["nginx", "-g", "daemon off;"]
 Build and run:
 
 ```bash
-docker build -f Dockerfile.docs -t thunder-docs .
-docker run -p 8080:80 thunder-docs
+docker build -f Dockerfile.docs -t {{productSlug}}-docs .
+docker run -p 8080:80 {{productSlug}}-docs
 ```
 
 ## Performance Optimization

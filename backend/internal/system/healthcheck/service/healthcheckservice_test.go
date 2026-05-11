@@ -20,7 +20,6 @@ package service
 
 import (
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/asgardeo/thunder/internal/system/config"
@@ -62,11 +61,9 @@ func (suite *HealthCheckServiceTestSuite) SetupTest() {
 			},
 		},
 	}
-	_ = config.InitializeThunderRuntime("test", testConfig)
+	_ = config.InitializeServerRuntime("test", testConfig)
 
-	instance = nil
-	once = sync.Once{}
-	suite.service = GetHealthCheckService()
+	suite.service = Initialize(nil, nil)
 }
 
 func (suite *HealthCheckServiceTestSuite) BeforeTest(suiteName, testName string) {

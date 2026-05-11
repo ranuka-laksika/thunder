@@ -64,7 +64,7 @@ func (h *jwtAuthenticator) Authenticate(r *http.Request) (*SecurityContext, erro
 	// If a trusted issuer is configured, the server delegates token issuance to it
 	// and verifies tokens exclusively against its JWKS. Otherwise, verify with the
 	// server's own signing key.
-	if config.GetThunderRuntime().Config.Server.SecurityConfig.TrustedIssuer.IsConfigured() {
+	if config.GetServerRuntime().Config.Server.SecurityConfig.TrustedIssuer.IsConfigured() {
 		if !h.verifyFederatedToken(token) {
 			return nil, errInvalidToken
 		}
@@ -102,7 +102,7 @@ func (h *jwtAuthenticator) Authenticate(r *http.Request) (*SecurityContext, erro
 //   - signature: verified via the auth server's JWKS endpoint
 //   - required_claims: each configured claim must match the expected value
 func (h *jwtAuthenticator) verifyFederatedToken(token string) (verified bool) {
-	trustedIssuer := config.GetThunderRuntime().Config.Server.SecurityConfig.TrustedIssuer
+	trustedIssuer := config.GetServerRuntime().Config.Server.SecurityConfig.TrustedIssuer
 	if !trustedIssuer.IsConfigured() {
 		return false
 	}
@@ -146,7 +146,7 @@ func extractToken(authHeader string) (string, error) {
 
 // extractScopes extracts permissions from JWT claims.
 // Permissions can be in "scope" (string with space-separated values), "scopes" (array) claim,
-// or "authorized_permissions" (Thunder-specific) claim.
+// or "authorized_permissions" (server-specific) claim.
 func extractScopes(attributes map[string]interface{}) []string {
 	// Try "scope" claim (OAuth2 standard - space-separated string)
 	if scopeStr, ok := attributes["scope"].(string); ok && scopeStr != "" {
@@ -169,7 +169,7 @@ func extractScopes(attributes map[string]interface{}) []string {
 		}
 	}
 
-	// Try "authorized_permissions" from the Thunder assertion
+	// Try "authorized_permissions" from the server assertion
 	if permsStr, ok := attributes["authorized_permissions"].(string); ok && permsStr != "" {
 		return strings.Fields(permsStr)
 	}

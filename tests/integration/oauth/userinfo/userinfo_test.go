@@ -46,7 +46,7 @@ const (
 )
 
 var (
-	testUserSchema = testutils.UserSchema{
+	testUserType = testutils.UserType{
 		Name: "userinfo-person",
 		Schema: map[string]interface{}{
 			"username": map[string]interface{}{
@@ -73,7 +73,7 @@ type UserInfoTestSuite struct {
 	suite.Suite
 	flowID        string
 	applicationID string
-	userSchemaID  string
+	entityTypeID  string
 	userID        string
 	client        *http.Client
 	ouID          string
@@ -97,11 +97,11 @@ func (ts *UserInfoTestSuite) SetupSuite() {
 	ts.Require().NoError(err, "Failed to create test organization unit")
 	ts.ouID = ouID
 
-	// Create user schema
-	testUserSchema.OUID = ts.ouID
-	schemaID, err := testutils.CreateUserType(testUserSchema)
-	ts.Require().NoError(err, "Failed to create test user schema")
-	ts.userSchemaID = schemaID
+	// Create user type
+	testUserType.OUID = ts.ouID
+	schemaID, err := testutils.CreateUserType(testUserType)
+	ts.Require().NoError(err, "Failed to create test user type")
+	ts.entityTypeID = schemaID
 
 	// Create test user
 	ts.userID = ts.createTestUser()
@@ -136,10 +136,10 @@ func (ts *UserInfoTestSuite) TearDownSuite() {
 		testutils.DeleteOrganizationUnit(ts.ouID)
 	}
 
-	// Clean up user schema
-	if ts.userSchemaID != "" {
-		if err := testutils.DeleteUserType(ts.userSchemaID); err != nil {
-			ts.T().Logf("Failed to delete user schema during teardown: %v", err)
+	// Clean up user type
+	if ts.entityTypeID != "" {
+		if err := testutils.DeleteUserType(ts.entityTypeID); err != nil {
+			ts.T().Logf("Failed to delete user type during teardown: %v", err)
 		}
 	}
 }
@@ -276,7 +276,7 @@ func (ts *UserInfoTestSuite) createTestApplication(authFlowID string) string {
 					"scopes":                  []string{"openid", "profile", "email"},
 					"token": map[string]interface{}{
 						"idToken": map[string]interface{}{
-							"userAttributes": []string{"email", "given_name", "family_name", "name"},
+							"userAttributes": []string{"email", "given_name", "family_name"},
 						},
 					},
 					"scopeClaims": map[string][]string{
@@ -1020,6 +1020,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_JWS_Response() {
 			},
 		},
 		"userInfo": map[string]interface{}{
+			"responseType":   "JWS",
 			"signingAlg":     "RS256",
 			"userAttributes": []string{"email", "given_name", "family_name"},
 		},
@@ -1083,7 +1084,7 @@ func buildRSAPublicJWKS() (jwksJSON string, privateKey *rsa.PrivateKey, err erro
 }
 
 // TestUserInfo_JWE_Response verifies that an application configured with encryptionAlg/encryptionEnc
-// returns a JWE compact serialisation (five dot-separated parts) with Content-Type: application/jose.
+// returns a JWE compact serialisation (five dot-separated parts) with Content-Type: application/jwt.
 func (ts *UserInfoTestSuite) TestUserInfo_JWE_Response() {
 	jwksJSON, _, err := buildRSAPublicJWKS()
 	ts.Require().NoError(err, "Failed to generate RSA key pair for JWE test")
@@ -1101,6 +1102,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_JWE_Response() {
 			},
 		},
 		"userInfo": map[string]interface{}{
+			"responseType":   "JWE",
 			"encryptionAlg":  "RSA-OAEP-256",
 			"encryptionEnc":  "A256GCM",
 			"userAttributes": []string{"email", "given_name"},
@@ -1130,7 +1132,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_JWE_Response() {
 	defer resp.Body.Close()
 
 	assert.Equal(ts.T(), http.StatusOK, resp.StatusCode)
-	assert.Equal(ts.T(), "application/jose", resp.Header.Get("Content-Type"))
+	assert.Equal(ts.T(), "application/jwt", resp.Header.Get("Content-Type"))
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	ts.Require().NoError(err)
@@ -1143,7 +1145,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_JWE_Response() {
 
 // TestUserInfo_NestedJWT_Response verifies that an application configured with both signingAlg and
 // encryptionAlg/encryptionEnc returns a Nested JWT (sign-then-encrypt JWE) with
-// Content-Type: application/jose.
+// Content-Type: application/jwt.
 func (ts *UserInfoTestSuite) TestUserInfo_NestedJWT_Response() {
 	jwksJSON, _, err := buildRSAPublicJWKS()
 	ts.Require().NoError(err, "Failed to generate RSA key pair for Nested JWT test")
@@ -1161,6 +1163,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_NestedJWT_Response() {
 			},
 		},
 		"userInfo": map[string]interface{}{
+			"responseType":   "NESTED_JWT",
 			"signingAlg":     "RS256",
 			"encryptionAlg":  "RSA-OAEP-256",
 			"encryptionEnc":  "A256GCM",
@@ -1191,7 +1194,7 @@ func (ts *UserInfoTestSuite) TestUserInfo_NestedJWT_Response() {
 	defer resp.Body.Close()
 
 	assert.Equal(ts.T(), http.StatusOK, resp.StatusCode)
-	assert.Equal(ts.T(), "application/jose", resp.Header.Get("Content-Type"))
+	assert.Equal(ts.T(), "application/jwt", resp.Header.Get("Content-Type"))
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	ts.Require().NoError(err)

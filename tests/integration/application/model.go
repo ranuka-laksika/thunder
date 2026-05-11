@@ -71,6 +71,7 @@ type OAuthAppConfig struct {
 	ScopeClaims             map[string][]string `json:"scopeClaims,omitempty"`
 	UserInfo                *UserInfoConfig     `json:"userInfo,omitempty"`
 	Certificate             *ApplicationCert    `json:"certificate,omitempty"`
+	AcrValues               []string            `json:"acrValues,omitempty"`
 }
 
 // OAuthTokenConfig represents the OAuth token configuration.
@@ -81,10 +82,11 @@ type OAuthTokenConfig struct {
 
 // UserInfoConfig represents the UserInfo endpoint configuration.
 type UserInfoConfig struct {
-	SigningAlg      string   `json:"signingAlg,omitempty"`
-	EncryptionAlg   string   `json:"encryptionAlg,omitempty"`
-	EncryptionEnc   string   `json:"encryptionEnc,omitempty"`
-	UserAttributes  []string `json:"userAttributes,omitempty"`
+	ResponseType   string   `json:"responseType,omitempty"`
+	SigningAlg     string   `json:"signingAlg,omitempty"`
+	EncryptionAlg  string   `json:"encryptionAlg,omitempty"`
+	EncryptionEnc  string   `json:"encryptionEnc,omitempty"`
+	UserAttributes []string `json:"userAttributes,omitempty"`
 }
 
 // AssertionConfig represents the assertion configuration (used for application-level assertion config).
@@ -108,6 +110,9 @@ type AccessTokenConfig struct {
 type IDTokenConfig struct {
 	ValidityPeriod int64    `json:"validityPeriod,omitempty"`
 	UserAttributes []string `json:"userAttributes,omitempty"`
+	ResponseType   string   `json:"responseType,omitempty"`
+	EncryptionAlg  string   `json:"encryptionAlg,omitempty"`
+	EncryptionEnc  string   `json:"encryptionEnc,omitempty"`
 }
 
 // ApplicationList represents the response structure for listing applications.
@@ -272,6 +277,10 @@ func (app *Application) equals(expectedApp Application) bool {
 					return false
 				}
 
+				if !compareStringSlices(oauth.AcrValues, expectedOAuth.AcrValues) {
+					return false
+				}
+
 				// Compare ScopeClaims - lenient if expected is nil but actual is empty
 				if expectedOAuth.ScopeClaims != nil {
 					if !compareScopeClaimsMaps(oauth.ScopeClaims, expectedOAuth.ScopeClaims) {
@@ -282,6 +291,9 @@ func (app *Application) equals(expectedApp Application) bool {
 				// Compare UserInfo config - lenient if expected is nil but actual is empty
 				if expectedOAuth.UserInfo != nil {
 					if oauth.UserInfo == nil {
+						return false
+					}
+					if oauth.UserInfo.ResponseType != expectedOAuth.UserInfo.ResponseType {
 						return false
 					}
 					if oauth.UserInfo.SigningAlg != expectedOAuth.UserInfo.SigningAlg {

@@ -52,9 +52,9 @@ func Initialize(
 
 // initializePARStore selects the PAR store implementation based on the configured runtime DB type.
 func initializePARStore() parStoreInterface {
-	deploymentID := config.GetThunderRuntime().Config.Server.Identifier
+	deploymentID := config.GetServerRuntime().Config.Server.Identifier
 
-	if config.GetThunderRuntime().Config.Database.Runtime.Type == provider.DataSourceTypeRedis {
+	if config.GetServerRuntime().Config.Database.Runtime.Type == provider.DataSourceTypeRedis {
 		return newRedisPARRequestStore(provider.GetRedisProvider(), deploymentID)
 	}
 	return newPARRequestStore(deploymentID)
@@ -70,9 +70,10 @@ func registerRoutes(
 	discoveryService discovery.DiscoveryServiceInterface,
 ) {
 	corsOpts := middleware.CORSOptions{
-		AllowedMethods:   "POST",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"POST"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 
 	metadata := discoveryService.GetOAuth2AuthorizationServerMetadata(context.Background())

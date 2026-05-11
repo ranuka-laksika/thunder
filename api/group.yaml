@@ -979,6 +979,7 @@ components:
             - user
             - group
             - app
+            - agent
         display:
           type: string
           readOnly: true
@@ -1129,7 +1130,7 @@ components:
       properties:
         code:
           type: string
-          description: Error code
+          description: "Error code. Codes follow the GRP-XXXX convention."
           example: "GRP-1001"
         message:
           $ref: '#/components/schemas/I18nMessage'

@@ -60,7 +60,7 @@ func Initialize(
 // initializeAuthorizationStores creates the authorization code store, request store, and transactioner.
 func initializeAuthorizationStores() (
 	AuthorizationCodeStoreInterface, authorizationRequestStoreInterface, transaction.Transactioner, error) {
-	if config.GetThunderRuntime().Config.Database.Runtime.Type == provider.DataSourceTypeRedis {
+	if config.GetServerRuntime().Config.Database.Runtime.Type == provider.DataSourceTypeRedis {
 		redisProvider := provider.GetRedisProvider()
 		return newRedisAuthorizationCodeStore(redisProvider),
 			newRedisAuthorizationRequestStore(redisProvider),
@@ -83,9 +83,10 @@ func registerRoutes(mux *http.ServeMux, authzHandler AuthorizeHandlerInterface) 
 		withFrameProtection(authzHandler.HandleAuthorizeGetRequest))
 
 	callbackOpts := middleware.CORSOptions{
-		AllowedMethods:   "POST",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"POST"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 
 	mux.HandleFunc(middleware.WithCORS("POST /oauth2/auth/callback",

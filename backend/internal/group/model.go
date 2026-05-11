@@ -29,6 +29,8 @@ const (
 	MemberTypeUser MemberType = "user"
 	// MemberTypeApp is the public type for application members.
 	MemberTypeApp MemberType = "app"
+	// MemberTypeAgent is the public type for agent members.
+	MemberTypeAgent MemberType = "agent"
 	// MemberTypeGroup is the public type for group members.
 	MemberTypeGroup MemberType = "group"
 )
@@ -38,11 +40,11 @@ const (
 	memberTypeEntity MemberType = "entity"
 )
 
-// IsEntityType reports whether t is an entity type (user, app) that maps
+// IsEntityType reports whether t is an entity type (user, app, agent) that maps
 // to the internal entity storage type.
 func (t MemberType) IsEntityType() bool {
 	switch t {
-	case MemberTypeUser, MemberTypeApp:
+	case MemberTypeUser, MemberTypeApp, MemberTypeAgent:
 		return true
 	}
 	return false
@@ -50,9 +52,9 @@ func (t MemberType) IsEntityType() bool {
 
 // Member represents a member of a group (either user or another group).
 type Member struct {
-	ID      string     `json:"id"`
-	Type    MemberType `json:"type"`
-	Display string     `json:"display,omitempty"`
+	ID      string     `json:"id" yaml:"id"`
+	Type    MemberType `json:"type" yaml:"type"`
+	Display string     `json:"display,omitempty" yaml:"display,omitempty"`
 }
 
 // GroupBasic represents the basic information of a group.
@@ -98,6 +100,7 @@ type MembersRequest struct {
 
 // CreateGroupRequest represents the request body for creating a group.
 type CreateGroupRequest struct {
+	ID          string   `json:"-"`
 	Name        string   `json:"name"`
 	Description string   `json:"description,omitempty"`
 	OUID        string   `json:"ouId"`

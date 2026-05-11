@@ -25,12 +25,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/asgardeo/thunder/internal/entitytype"
 	"github.com/asgardeo/thunder/internal/ou"
-	"github.com/asgardeo/thunder/internal/system/crypto/hash"
+	"github.com/asgardeo/thunder/internal/system/cryptolab/hash"
 	"github.com/asgardeo/thunder/internal/system/log"
 	"github.com/asgardeo/thunder/internal/system/transaction"
 	sysutils "github.com/asgardeo/thunder/internal/system/utils"
-	"github.com/asgardeo/thunder/internal/userschema"
 )
 
 // EntityServiceInterface is the interface for managing entities.
@@ -94,24 +94,30 @@ type EntityServiceInterface interface {
 type entityService struct {
 	store             entityStoreInterface
 	hashService       hash.HashServiceInterface
-	userSchemaService userschema.UserSchemaServiceInterface
+	entityTypeService entitytype.EntityTypeServiceInterface
 	ouService         ou.OrganizationUnitServiceInterface
 	transactioner     transaction.Transactioner
 	logger            *log.Logger
+}
+
+// usesEntityType reports whether entities of the given category route through the entity type
+// infrastructure for attribute validation, credential extraction, and uniqueness checks.
+func usesEntityType(category EntityCategory) bool {
+	return category == EntityCategoryUser || category == EntityCategoryAgent
 }
 
 // newEntityService creates a new entity service.
 func newEntityService(
 	store entityStoreInterface,
 	hashService hash.HashServiceInterface,
-	userSchemaService userschema.UserSchemaServiceInterface,
+	entityTypeService entitytype.EntityTypeServiceInterface,
 	ouService ou.OrganizationUnitServiceInterface,
 	transactioner transaction.Transactioner,
 ) EntityServiceInterface {
 	return &entityService{
 		store:             store,
 		hashService:       hashService,
-		userSchemaService: userSchemaService,
+		entityTypeService: entityTypeService,
 		ouService:         ouService,
 		transactioner:     transactioner,
 		logger:            log.GetLogger().With(log.String(log.LoggerKeyComponentName, "EntityService")),
@@ -136,7 +142,7 @@ func (s *entityService) CreateEntity(ctx context.Context, entity *Entity,
 	s.logger.Debug("Creating entity", log.MaskedString("id", entity.ID))
 
 	// Validate entity attributes and uniqueness via schema.
-	if err := s.validateEntitySchema(ctx, entity.Category, entity.Type, entity.Attributes, "", false); err != nil {
+	if err := s.validateEntityType(ctx, entity.Category, entity.Type, entity.Attributes, "", false); err != nil {
 		return nil, err
 	}
 
@@ -221,7 +227,7 @@ func (s *entityService) UpdateEntity(ctx context.Context, entityID string, entit
 	s.logger.Debug("Updating entity", log.MaskedString("id", entityID))
 
 	// Validate entity attributes and uniqueness via schema (excludes self for uniqueness).
-	if err := s.validateEntitySchema(ctx, entity.Category, entity.Type, entity.Attributes, entityID, true); err != nil {
+	if err := s.validateEntityType(ctx, entity.Category, entity.Type, entity.Attributes, entityID, true); err != nil {
 		return nil, err
 	}
 
@@ -289,7 +295,7 @@ func (s *entityService) UpdateAttributes(ctx context.Context, entityID string, a
 	}
 
 	// Validate attribute uniqueness via schema (excludes self, credentials not required for updates).
-	if err := s.validateEntitySchema(ctx, existing.Category, existing.Type, attributes, entityID, true); err != nil {
+	if err := s.validateEntityType(ctx, existing.Category, existing.Type, attributes, entityID, true); err != nil {
 		return err
 	}
 
@@ -624,17 +630,18 @@ func (s *entityService) UpdateCredentials(ctx context.Context, entityID string,
 func (s *entityService) validateCredentialKeys(
 	ctx context.Context, category EntityCategory, entityType string, updates map[string]interface{},
 ) error {
-	if category != EntityCategoryUser || s.userSchemaService == nil {
+	if !usesEntityType(category) || s.entityTypeService == nil {
 		return nil
 	}
 
-	credFields, svcErr := s.userSchemaService.GetCredentialAttributes(ctx, entityType)
+	credInfos, svcErr := s.entityTypeService.GetAttributes(ctx,
+		entitytype.TypeCategory(category), entityType, true, false, false)
 	if svcErr != nil {
 		return fmt.Errorf("failed to get credential attributes from schema: %s", svcErr.ErrorDescription)
 	}
-	allowed := make(map[string]struct{}, len(credFields))
-	for _, f := range credFields {
-		allowed[f] = struct{}{}
+	allowed := make(map[string]struct{}, len(credInfos))
+	for _, a := range credInfos {
+		allowed[a.Attribute] = struct{}{}
 	}
 	for key := range updates {
 		if _, ok := allowed[key]; !ok {
@@ -742,12 +749,11 @@ func (s *entityService) populateOUHandles(ctx context.Context, entities []Entity
 	}
 }
 
-// validateEntitySchema validates entity attributes and uniqueness against the entity schema.
-// For user entities, it delegates to the user schema service for attribute validation and
-// uniqueness checking. excludeEntityID is used to exclude the entity itself from uniqueness
+// validateEntityType validates entity attributes and uniqueness against the entity type.
+// excludeEntityID is used to exclude the entity itself from uniqueness
 // checks during updates (empty string for creates). skipCredentialRequired controls whether
 // credential fields are required (false for creates, true for updates).
-func (s *entityService) validateEntitySchema(
+func (s *entityService) validateEntityType(
 	ctx context.Context,
 	category EntityCategory,
 	entityType string,
@@ -755,13 +761,15 @@ func (s *entityService) validateEntitySchema(
 	excludeEntityID string,
 	skipCredentialRequired bool,
 ) error {
-	// Only user entities have schema validation for now.
-	if category != EntityCategoryUser || s.userSchemaService == nil {
+	if !usesEntityType(category) || s.entityTypeService == nil {
 		return nil
 	}
 
+	schemaCategory := entitytype.TypeCategory(category)
+
 	// Validate attributes against schema (required fields, regex patterns, types).
-	isValid, svcErr := s.userSchemaService.ValidateUser(ctx, entityType, attributes, skipCredentialRequired)
+	isValid, svcErr := s.entityTypeService.ValidateEntity(ctx, schemaCategory, entityType, attributes,
+		skipCredentialRequired)
 	if svcErr != nil {
 		return fmt.Errorf("%w: %s", ErrSchemaValidationFailed, svcErr.ErrorDescription)
 	}
@@ -770,7 +778,7 @@ func (s *entityService) validateEntitySchema(
 	}
 
 	// Validate attribute uniqueness
-	isValid, svcErr = s.userSchemaService.ValidateUserUniqueness(ctx, entityType, attributes,
+	isValid, svcErr = s.entityTypeService.ValidateEntityUniqueness(ctx, schemaCategory, entityType, attributes,
 		func(filters map[string]interface{}) (bool, error) {
 			id, err := s.IdentifyEntity(ctx, filters)
 			if err != nil {
@@ -832,21 +840,22 @@ func mergeCredentialJSON(existing, updates json.RawMessage) json.RawMessage {
 // extractAndHashSchemaCredentials extracts schema-defined credential fields from entity.Attributes,
 // hashes them, and returns the hashed credentials.
 func (s *entityService) extractAndHashSchemaCredentials(ctx context.Context, entity *Entity) (json.RawMessage, error) {
-	// Only user entities have schema-defined credentials for now.
-	if entity.Category != EntityCategoryUser {
+	// User and agent entities both use schema-defined credentials for now.
+	if !usesEntityType(entity.Category) {
 		return nil, nil
 	}
 
-	if s.userSchemaService == nil || len(entity.Attributes) == 0 {
+	if s.entityTypeService == nil || len(entity.Attributes) == 0 {
 		return nil, nil
 	}
 
-	credentialFields, svcErr := s.userSchemaService.GetCredentialAttributes(ctx, entity.Type)
+	credentialInfos, svcErr := s.entityTypeService.GetAttributes(ctx,
+		entitytype.TypeCategory(entity.Category), entity.Type, true, false, false)
 	if svcErr != nil {
 		return nil, fmt.Errorf("failed to get credential attributes from schema: %s", svcErr.ErrorDescription)
 	}
 
-	if len(credentialFields) == 0 {
+	if len(credentialInfos) == 0 {
 		return nil, nil
 	}
 
@@ -856,10 +865,10 @@ func (s *entityService) extractAndHashSchemaCredentials(ctx context.Context, ent
 	}
 
 	plaintextCreds := make(map[string]string)
-	for _, field := range credentialFields {
-		if val, ok := attrsMap[field].(string); ok && val != "" {
-			plaintextCreds[field] = val
-			delete(attrsMap, field)
+	for _, info := range credentialInfos {
+		if val, ok := attrsMap[info.Attribute].(string); ok && val != "" {
+			plaintextCreds[info.Attribute] = val
+			delete(attrsMap, info.Attribute)
 		}
 	}
 

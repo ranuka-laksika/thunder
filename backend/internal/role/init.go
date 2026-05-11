@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/asgardeo/thunder/internal/entity"
+	"github.com/asgardeo/thunder/internal/entitytype"
 	"github.com/asgardeo/thunder/internal/group"
 	oupkg "github.com/asgardeo/thunder/internal/ou"
 	resourcepkg "github.com/asgardeo/thunder/internal/resource"
@@ -30,7 +31,6 @@ import (
 	declarativeresource "github.com/asgardeo/thunder/internal/system/declarative_resource"
 	"github.com/asgardeo/thunder/internal/system/middleware"
 	"github.com/asgardeo/thunder/internal/system/transaction"
-	"github.com/asgardeo/thunder/internal/userschema"
 )
 
 // Initialize initializes the role service and registers its routes.
@@ -40,7 +40,7 @@ func Initialize(
 	groupService group.GroupServiceInterface,
 	ouService oupkg.OrganizationUnitServiceInterface,
 	resourceService resourcepkg.ResourceServiceInterface,
-	userSchemaService userschema.UserSchemaServiceInterface,
+	entityTypeService entitytype.EntityTypeServiceInterface,
 ) (RoleServiceInterface, declarativeresource.ResourceExporter, error) {
 	// Step 1: Initialize store and transactioner based on store mode
 	roleStore, transactioner, err := initializeStore()
@@ -51,7 +51,7 @@ func Initialize(
 	// Step 2: Create service with store
 	roleService := newRoleService(
 		roleStore, entityService, groupService, ouService, resourceService,
-		userSchemaService, transactioner,
+		entityTypeService, transactioner,
 	)
 	roleHandler := newRoleHandler(roleService)
 	registerRoutes(mux, roleHandler)
@@ -116,9 +116,10 @@ func initializeStore() (roleStoreInterface, transaction.Transactioner, error) {
 // registerRoutes registers the routes for role management operations.
 func registerRoutes(mux *http.ServeMux, roleHandler *roleHandler) {
 	opts1 := middleware.CORSOptions{
-		AllowedMethods:   "GET, POST",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET", "POST"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("POST /roles", roleHandler.HandleRolePostRequest, opts1))
 	mux.HandleFunc(middleware.WithCORS("GET /roles", roleHandler.HandleRoleListRequest, opts1))
@@ -127,9 +128,10 @@ func registerRoutes(mux *http.ServeMux, roleHandler *roleHandler) {
 	}, opts1))
 
 	opts2 := middleware.CORSOptions{
-		AllowedMethods:   "GET, PUT, DELETE",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET", "PUT", "DELETE"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	// Special handling for /roles/{id} and /roles/{id}/assignments
 	mux.HandleFunc(middleware.WithCORS("GET /roles/",
@@ -152,18 +154,20 @@ func registerRoutes(mux *http.ServeMux, roleHandler *roleHandler) {
 		w.WriteHeader(http.StatusNoContent)
 	}, opts2))
 	opts4 := middleware.CORSOptions{
-		AllowedMethods:   "GET",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("OPTIONS /roles/{id}/assignments", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}, opts4))
 
 	opts3 := middleware.CORSOptions{
-		AllowedMethods:   "POST",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"POST"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("POST /roles/{id}/assignments/add",
 		roleHandler.HandleRoleAddAssignmentsRequest, opts3))

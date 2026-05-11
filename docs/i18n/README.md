@@ -1,6 +1,6 @@
-# Thunder Documentation Internationalization (i18n)
+# ThunderID Documentation Internationalization (i18n)
 
-This directory contains translations for the Thunder documentation.
+This directory contains translations for the ThunderID documentation.
 
 ## Directory Structure
 
@@ -106,4 +106,4 @@ Common locale codes:
 
 ## Questions?
 
-If you have questions about translations, please open a [discussion](https://github.com/asgardeo/thunder/discussions) or [issue](https://github.com/asgardeo/thunder/issues).
+If you have questions about translations, please open a [discussion](https://github.com/thunder-id/thunder-id/discussions) or [issue](https://github.com/thunder-id/thunder-id/issues).

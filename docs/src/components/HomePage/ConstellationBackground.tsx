@@ -16,39 +16,40 @@
  * under the License.
  */
 
+import {useTheme} from '@wso2/oxygen-ui';
 import React, {JSX} from 'react';
 import useIsDarkMode from '../../hooks/useIsDarkMode';
 
 /**
- * Thunder (lightning bolt) outline vertices, based on the path:
+ * Lightning bolt outline vertices, based on the path:
  *   M13.5,1 L4,18 L11,18 L9.5,31 L20,14 L13,14 L13.5,1 Z
  * Normalized to a 24x32 unit coordinate space.
  */
 const BOLT_VERTICES: [number, number][] = [
-  [13.5, 1],   // top point
-  [4, 18],     // lower-left bend
-  [11, 18],    // inner-left step
-  [9.5, 31],   // bottom point
-  [20, 14],    // upper-right bend
-  [13, 14],    // inner-right step
+  [13.5, 1], // top point
+  [4, 18], // lower-left bend
+  [11, 18], // inner-left step
+  [9.5, 31], // bottom point
+  [20, 14], // upper-right bend
+  [13, 14], // inner-right step
 ];
 
 const BOLT_CX = 12;
 const BOLT_CY = 16;
 
-/** Generate SVG path `d` for a thunder bolt at given position and scale. */
+/** Generate SVG path `d` for a bolt at given position and scale. */
 function boltPath(cx: number, cy: number, scale: number): string {
-  return BOLT_VERTICES
-    .map(([px, py], i) => {
+  return (
+    BOLT_VERTICES.map(([px, py], i) => {
       const x = (px - BOLT_CX) * scale + cx;
       const y = (py - BOLT_CY) * scale + cy;
 
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ') + ' Z';
+    }).join(' ') + ' Z'
+  );
 }
 
-/** Get all vertices of the thunder bolt for drawing nodes. */
+/** Get all vertices of the bolt for drawing nodes. */
 function boltVertices(cx: number, cy: number, scale: number): {x: number; y: number}[] {
   return BOLT_VERTICES.map(([px, py]) => ({
     x: (px - BOLT_CX) * scale + cx,
@@ -57,13 +58,14 @@ function boltVertices(cx: number, cy: number, scale: number): {x: number; y: num
 }
 
 /**
- * Single large thunder bolt outline as the hero background,
+ * Single large bolt outline as the hero background,
  * rendered with dashed lines and nodes at vertices.
  */
 const ConstellationBackground = React.memo(function ConstellationBackground(): JSX.Element {
   const isDark = useIsDarkMode();
+  const theme = useTheme();
 
-  // One large thunder bolt positioned to the right side
+  // One large bolt positioned to the right side
   const shapeCx = 1050;
   const shapeCy = 400;
   const shapeScale = 22;
@@ -95,21 +97,44 @@ const ConstellationBackground = React.memo(function ConstellationBackground(): J
             to { stroke-dashoffset: -40; }
           }
         `}</style>
-        <radialGradient id="hero-orange-glow" cx="60%" cy="35%" r="45%">
-          <stop offset="0%" stopColor={isDark ? 'rgba(255, 107, 0, 0.18)' : 'rgba(255, 107, 0, 0.08)'} />
-          <stop offset="50%" stopColor={isDark ? 'rgba(255, 107, 0, 0.06)' : 'rgba(255, 107, 0, 0.03)'} />
+        <radialGradient id="hero-blue-glow" cx="60%" cy="35%" r="45%">
+          <stop
+            offset="0%"
+            stopColor={
+              isDark
+                ? `rgba(${theme.vars?.palette.primary.main} / 0.18)`
+                : `rgba(${theme.vars?.palette.primary.main} / 0.08)`
+            }
+          />
+          <stop
+            offset="50%"
+            stopColor={
+              isDark
+                ? `rgba(${theme.vars?.palette.primary.main} / 0.06)`
+                : `rgba(${theme.vars?.palette.primary.main} / 0.03)`
+            }
+          />
           <stop offset="100%" stopColor="transparent" />
         </radialGradient>
-        <radialGradient id="hero-orange-glow-2" cx="85%" cy="25%" r="30%">
-          <stop offset="0%" stopColor={isDark ? 'rgba(255, 107, 0, 0.12)' : 'rgba(255, 107, 0, 0.06)'} />
+        <radialGradient id="hero-blue-glow-2" cx="85%" cy="25%" r="30%">
+          <stop
+            offset="0%"
+            stopColor={
+              isDark
+                ? `rgba(${theme.vars?.palette.secondary.mainChannel} / 0.12)`
+                : `rgba(${theme.vars?.palette.secondary.mainChannel} / 0.06)`
+            }
+          />
           <stop offset="100%" stopColor="transparent" />
         </radialGradient>
       </defs>
-      <rect width="1440" height="900" fill="url(#hero-orange-glow)" />
-      <rect width="1440" height="900" fill="url(#hero-orange-glow-2)" />
+      <rect width="1440" height="900" fill="url(#hero-blue-glow)" />
+      <rect width="1440" height="900" fill="url(#hero-blue-glow-2)" />
 
-      {/* Single large thunder bolt outline — dashed stroke with slow float */}
-      <g style={{transformOrigin: `${shapeCx}px ${shapeCy}px`, animation: 'constellationFloat 20s ease-in-out infinite'}}>
+      {/* Single large bolt outline — dashed stroke with slow float */}
+      <g
+        style={{transformOrigin: `${shapeCx}px ${shapeCy}px`, animation: 'constellationFloat 20s ease-in-out infinite'}}
+      >
         <path
           d={boltPath(shapeCx, shapeCy, shapeScale)}
           fill="none"
@@ -125,7 +150,13 @@ const ConstellationBackground = React.memo(function ConstellationBackground(): J
         <g fill={isDark ? 'white' : '#1a1a2e'}>
           {vertices.map((v, i) => (
             <circle key={i} cx={v.x} cy={v.y} r="3" opacity={isDark ? 0.35 : 0.2}>
-              <animate attributeName="opacity" values={`${isDark ? 0.2 : 0.1};${isDark ? 0.5 : 0.3};${isDark ? 0.2 : 0.1}`} dur={`${3 + (i % 3)}s`} begin={`${i * 0.3}s`} repeatCount="indefinite" />
+              <animate
+                attributeName="opacity"
+                values={`${isDark ? 0.2 : 0.1};${isDark ? 0.5 : 0.3};${isDark ? 0.2 : 0.1}`}
+                dur={`${3 + (i % 3)}s`}
+                begin={`${i * 0.3}s`}
+                repeatCount="indefinite"
+              />
             </circle>
           ))}
         </g>

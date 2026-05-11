@@ -23,8 +23,8 @@ if [ "$DB_TYPE" = "postgres" ]; then
       hostname: localhost
       port: 5432
       name: configdb
-      username: asgthunder
-      password: asgthunder
+      username: dbuser
+      password: dbpassword
       sslmode: disable
 
   runtime:
@@ -33,8 +33,8 @@ if [ "$DB_TYPE" = "postgres" ]; then
       hostname: localhost
       port: 5432
       name: runtimedb
-      username: asgthunder
-      password: asgthunder
+      username: dbuser
+      password: dbpassword
       sslmode: disable
 
   user:
@@ -43,8 +43,8 @@ if [ "$DB_TYPE" = "postgres" ]; then
       hostname: localhost
       port: 5432
       name: userdb
-      username: asgthunder
-      password: asgthunder
+      username: dbuser
+      password: dbpassword
       sslmode: disable
 EOF
 elif [ "$DB_TYPE" = "redis" ]; then
@@ -60,7 +60,7 @@ elif [ "$DB_TYPE" = "redis" ]; then
     redis:
       address: "localhost:6379"
       db: 0
-      key_prefix: "thunder"
+      key_prefix: "thunderid"
 
   user:
     type: sqlite
@@ -98,4 +98,16 @@ flow:
 
 oauth:
   allow_wildcard_redirect_uri: true
+  auth_class:
+    amrs:
+      - PWD
+      - OTP
+      - BIO
+    acr_amr:
+      "urn:thunder:acr:password":
+        - PWD
+      "urn:thunder:acr:generated-code":
+        - OTP
+      "urn:thunder:acr:biometrics":
+        - BIO
 EOF

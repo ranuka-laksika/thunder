@@ -90,6 +90,7 @@ func (e *inviteExecutor) executeGenerate(ctx *core.NodeContext) (*common.Executo
 	execResp := &common.ExecutorResponse{
 		AdditionalData: make(map[string]string),
 		RuntimeData:    make(map[string]string),
+		ForwardedData:  make(map[string]interface{}),
 	}
 
 	inviteToken, err := e.getOrGenerateToken(ctx)
@@ -103,6 +104,10 @@ func (e *inviteExecutor) executeGenerate(ctx *core.NodeContext) (*common.Executo
 
 	execResp.RuntimeData[common.RuntimeKeyStoredInviteToken] = inviteToken
 	execResp.RuntimeData[common.RuntimeKeyInviteLink] = inviteLink
+
+	execResp.ForwardedData[common.ForwardedDataKeyTemplateData] = map[string]interface{}{
+		"inviteLink": inviteLink,
+	}
 
 	if ctx.FlowType == common.FlowTypeUserOnboarding {
 		execResp.AdditionalData[common.DataInviteLink] = inviteLink
@@ -162,7 +167,7 @@ func (e *inviteExecutor) getOrGenerateToken(ctx *core.NodeContext) (string, erro
 
 // generateInviteLink constructs the invite link using the GateClient configuration.
 func (e *inviteExecutor) generateInviteLink(ctx *core.NodeContext, inviteToken string) string {
-	gateConfig := config.GetThunderRuntime().Config.GateClient
+	gateConfig := config.GetServerRuntime().Config.GateClient
 	gateAppURL := fmt.Sprintf("%s://%s:%d%s",
 		gateConfig.Scheme,
 		gateConfig.Hostname,
@@ -173,8 +178,8 @@ func (e *inviteExecutor) generateInviteLink(ctx *core.NodeContext, inviteToken s
 		"inviteToken": []string{inviteToken},
 	}
 
-	if ctx.AppID != "" {
-		queryParams.Set(oauth2const.AppID, ctx.AppID)
+	if ctx.EntityID != "" {
+		queryParams.Set(oauth2const.AppID, ctx.EntityID)
 	}
 
 	return fmt.Sprintf("%s/invite?%s", gateAppURL, queryParams.Encode())

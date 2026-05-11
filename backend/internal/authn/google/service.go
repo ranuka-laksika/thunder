@@ -28,10 +28,8 @@ import (
 	authnoauth "github.com/asgardeo/thunder/internal/authn/oauth"
 	authnoidc "github.com/asgardeo/thunder/internal/authn/oidc"
 	"github.com/asgardeo/thunder/internal/entityprovider"
-	"github.com/asgardeo/thunder/internal/idp"
 	"github.com/asgardeo/thunder/internal/system/config"
 	"github.com/asgardeo/thunder/internal/system/error/serviceerror"
-	syshttp "github.com/asgardeo/thunder/internal/system/http"
 	"github.com/asgardeo/thunder/internal/system/i18n/core"
 	"github.com/asgardeo/thunder/internal/system/jose/jwt"
 	"github.com/asgardeo/thunder/internal/system/log"
@@ -54,11 +52,8 @@ type googleOIDCAuthnService struct {
 }
 
 // newGoogleOIDCAuthnService creates a new instance of Google OIDC authenticator service.
-func newGoogleOIDCAuthnService(idpSvc idp.IDPServiceInterface, entityProvider entityprovider.EntityProviderInterface,
+func newGoogleOIDCAuthnService(internal authnoidc.OIDCAuthnServiceInterface,
 	jwtSvc jwt.JWTServiceInterface) GoogleOIDCAuthnServiceInterface {
-	httpClient := syshttp.NewHTTPClient()
-	internal := authnoidc.NewOIDCAuthnService(httpClient, idpSvc, entityProvider, jwtSvc)
-
 	return &googleOIDCAuthnService{
 		internal:   internal,
 		jwtService: jwtSvc,
@@ -165,7 +160,7 @@ func (g *googleOIDCAuthnService) ValidateIDToken(
 	}
 
 	// Get leeway from config to account for clock skew
-	leeway := config.GetThunderRuntime().Config.JWT.Leeway
+	leeway := config.GetServerRuntime().Config.JWT.Leeway
 
 	// Validate expiration time
 	exp, ok := claims["exp"].(float64)

@@ -27,6 +27,7 @@ import (
 	"github.com/asgardeo/thunder/internal/flow/core"
 	"github.com/asgardeo/thunder/internal/flow/executor"
 
+	"github.com/asgardeo/thunder/internal/system/cache"
 	"github.com/asgardeo/thunder/internal/system/config"
 	serverconst "github.com/asgardeo/thunder/internal/system/constants"
 	declarativeresource "github.com/asgardeo/thunder/internal/system/declarative_resource"
@@ -38,11 +39,12 @@ import (
 func Initialize(
 	mux *http.ServeMux,
 	mcpServer *mcp.Server,
+	cacheManager cache.CacheManagerInterface,
 	flowFactory core.FlowFactoryInterface,
 	executorRegistry executor.ExecutorRegistryInterface,
 	graphCache core.GraphCacheInterface,
 ) (FlowMgtServiceInterface, declarativeresource.ResourceExporter, error) {
-	store, compositeStore, transactioner, err := initializeStore()
+	store, compositeStore, transactioner, err := initializeStore(cacheManager)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -83,15 +85,19 @@ func Initialize(
 //   - Reads check both stores (merged results)
 //   - Writes only go to database store
 //   - Declarative flows cannot be updated or deleted
-func initializeStore() (flowStoreInterface, *compositeFlowStore, transaction.Transactioner, error) {
+func initializeStore(cacheManager cache.CacheManagerInterface) (
+	flowStoreInterface, *compositeFlowStore, transaction.Transactioner, error) {
 	var compositeStore *compositeFlowStore
 
 	storeMode := getFlowStoreMode()
 
+	flowByIDCache := cache.GetCache[*CompleteFlowDefinition](cacheManager, "FlowByIDCache")
+	flowByHandleCache := cache.GetCache[*CompleteFlowDefinition](cacheManager, "FlowByHandleCache")
+
 	switch storeMode {
 	case serverconst.StoreModeComposite:
 		fileStore, _ := newFileBasedStore()
-		dbStore, transactioner, err := newCacheBackedFlowStore()
+		dbStore, transactioner, err := newCacheBackedFlowStore(flowByIDCache, flowByHandleCache)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -109,7 +115,7 @@ func initializeStore() (flowStoreInterface, *compositeFlowStore, transaction.Tra
 		return fileStore, nil, transactioner, nil
 
 	default:
-		store, transactioner, err := newCacheBackedFlowStore()
+		store, transactioner, err := newCacheBackedFlowStore(flowByIDCache, flowByHandleCache)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -122,7 +128,7 @@ func initializeStore() (flowStoreInterface, *compositeFlowStore, transaction.Tra
 //  1. If Flow.Store is explicitly configured, use it
 //  2. Otherwise, fall back to global DeclarativeResources.Enabled
 func getFlowStoreMode() serverconst.StoreMode {
-	cfg := config.GetThunderRuntime().Config
+	cfg := config.GetServerRuntime().Config
 	// Check if service-level configuration is explicitly set
 	if cfg.Flow.Store != "" {
 		mode := serverconst.StoreMode(strings.ToLower(strings.TrimSpace(cfg.Flow.Store)))
@@ -149,9 +155,10 @@ func isCompositeModeEnabled() bool {
 // registerRoutes registers the HTTP routes for flow management.
 func registerRoutes(mux *http.ServeMux, handler *flowMgtHandler) {
 	opts1 := middleware.CORSOptions{
-		AllowedMethods:   "GET, POST",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET", "POST"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("GET /flows", handler.listFlows, opts1))
 	mux.HandleFunc(middleware.WithCORS("POST /flows", handler.createFlow, opts1))
@@ -160,9 +167,10 @@ func registerRoutes(mux *http.ServeMux, handler *flowMgtHandler) {
 	}, opts1))
 
 	opts2 := middleware.CORSOptions{
-		AllowedMethods:   "GET, PUT, DELETE",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET", "PUT", "DELETE"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("GET /flows/{flowId}", handler.getFlow, opts2))
 	mux.HandleFunc(middleware.WithCORS("PUT /flows/{flowId}", handler.updateFlow, opts2))
@@ -172,9 +180,10 @@ func registerRoutes(mux *http.ServeMux, handler *flowMgtHandler) {
 	}, opts2))
 
 	opts3 := middleware.CORSOptions{
-		AllowedMethods:   "GET",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("GET /flows/{flowId}/versions", handler.listFlowVersions, opts3))
 	mux.HandleFunc(middleware.WithCORS("OPTIONS /flows/{flowId}/versions",
@@ -190,9 +199,10 @@ func registerRoutes(mux *http.ServeMux, handler *flowMgtHandler) {
 	)
 
 	opts4 := middleware.CORSOptions{
-		AllowedMethods:   "POST",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"POST"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("POST /flows/{flowId}/restore", handler.restoreFlowVersion, opts4))
 	mux.HandleFunc(middleware.WithCORS("OPTIONS /flows/{flowId}/restore",

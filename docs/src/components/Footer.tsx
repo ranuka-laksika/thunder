@@ -16,12 +16,13 @@
  * under the License.
  */
 
-import React, {JSX} from 'react';
 import Link from '@docusaurus/Link';
 import {useBaseUrlUtils} from '@docusaurus/useBaseUrl';
-import {Box, Container, Typography} from '@wso2/oxygen-ui';
-import useIsDarkMode from '../hooks/useIsDarkMode';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import type {DocusaurusProductConfig} from '@site/docusaurus.product.config';
 import ThemedImage from '@theme/ThemedImage';
+import {Box, Container, Typography} from '@wso2/oxygen-ui';
+import React, {JSX} from 'react';
 
 interface FooterColumnProps {
   title: string;
@@ -29,8 +30,6 @@ interface FooterColumnProps {
 }
 
 function FooterColumn({title, links}: FooterColumnProps) {
-  const isDark = useIsDarkMode();
-
   return (
     <Box>
       <Typography
@@ -39,7 +38,7 @@ function FooterColumn({title, links}: FooterColumnProps) {
           fontWeight: 600,
           mb: 2,
           fontSize: '0.85rem',
-          color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.85)',
+          color: 'text.primary',
         }}
       >
         {title}
@@ -54,10 +53,10 @@ function FooterColumn({title, links}: FooterColumnProps) {
             display: 'block',
             mb: 1.5,
             fontSize: '0.8rem',
-            color: isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+            color: 'text.secondary',
             textDecoration: 'none',
             '&:hover': {
-              color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)',
+              color: 'text.primary',
               textDecoration: 'none',
             },
           }}
@@ -71,14 +70,16 @@ function FooterColumn({title, links}: FooterColumnProps) {
 
 export default function Footer(): JSX.Element {
   const {withBaseUrl} = useBaseUrlUtils();
-  const isDark = useIsDarkMode();
+  const {siteConfig} = useDocusaurusContext();
+  const productConfig = siteConfig.customFields?.product as DocusaurusProductConfig;
 
   return (
     <Box
       sx={{
-        bgcolor: isDark ? '#0a0a0a' : '#f8f9fa',
-        color: isDark ? '#fff' : '#1a1a2e',
-        borderTop: isDark ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
+        bgcolor: 'background.default',
+        color: 'text.primary',
+        borderTop: '1px solid',
+        borderColor: 'divider',
         pt: {xs: 6, lg: 8},
         pb: 3,
       }}
@@ -100,14 +101,14 @@ export default function Footer(): JSX.Element {
                   light: withBaseUrl('/assets/images/logo.svg'),
                   dark: withBaseUrl('/assets/images/logo-inverted.svg'),
                 }}
-                alt="Thunder Logo"
+                alt={`${productConfig.project.name} Logo`}
                 style={{height: 32}}
               />
             </Box>
             <Typography
               variant="body2"
               sx={{
-                color: isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+                color: 'text.secondary',
                 fontSize: '0.85rem',
                 lineHeight: 1.7,
                 maxWidth: '280px',
@@ -119,7 +120,7 @@ export default function Footer(): JSX.Element {
             <Typography
               variant="caption"
               sx={{
-                color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
+                color: 'text.disabled',
                 fontSize: '0.75rem',
               }}
             >
@@ -132,7 +133,7 @@ export default function Footer(): JSX.Element {
             title="Pages"
             links={[
               {label: 'Home', href: '/'},
-              {label: 'Docs', href: '/docs/next/guides/getting-started/what-is-thunder'},
+              {label: 'Docs', href: '/docs/next/guides/getting-started/what-is-thunderid'},
               {label: 'APIs', href: '/docs/next/apis'},
               {label: 'SDKs', href: '/docs/next/sdks/overview'},
             ]}
@@ -143,18 +144,18 @@ export default function Footer(): JSX.Element {
             title="Resources"
             links={[
               {label: 'Community', href: '/docs/next/community/overview'},
-              {label: 'Releases', href: 'https://github.com/asgardeo/thunder/releases'},
-              {label: 'Discussions', href: 'https://github.com/asgardeo/thunder/discussions'},
-              {label: 'Report an Issue', href: 'https://github.com/asgardeo/thunder/issues'},
+              {label: 'Releases', href: productConfig.project.source.github.releasesUrl},
+              {label: 'Discussions', href: productConfig.project.source.github.discussionsUrl},
+              {label: 'Report an Issue', href: productConfig.project.source.github.issuesUrl},
             ]}
           />
-
         </Box>
 
         {/* Copyright */}
         <Box
           sx={{
-            borderTop: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
+            borderTop: '1px solid',
+            borderColor: 'divider',
             pt: 3,
             textAlign: 'center',
           }}
@@ -162,7 +163,7 @@ export default function Footer(): JSX.Element {
           <Typography
             variant="caption"
             sx={{
-              color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)',
+              color: 'text.disabled',
               fontSize: '0.75rem',
             }}
           >

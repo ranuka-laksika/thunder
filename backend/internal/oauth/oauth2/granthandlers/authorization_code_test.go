@@ -92,13 +92,13 @@ func TestAuthorizationCodeGrantHandlerSuite(t *testing.T) {
 }
 
 func (suite *AuthorizationCodeGrantHandlerTestSuite) SetupTest() {
-	// Initialize Thunder Runtime config with basic test config
+	// Initialize Runtime config with basic test config
 	testConfig := &config.Config{
 		JWT: config.JWTConfig{
 			ValidityPeriod: 3600,
 		},
 	}
-	_ = config.InitializeThunderRuntime("test", testConfig)
+	_ = config.InitializeServerRuntime("test", testConfig)
 
 	suite.mockJWTService = jwtmock.NewJWTServiceInterfaceMock(suite.T())
 	suite.mockTokenBuilder = tokenservicemock.NewTokenBuilderInterfaceMock(suite.T())

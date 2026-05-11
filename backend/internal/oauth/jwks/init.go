@@ -21,12 +21,12 @@ package jwks
 import (
 	"net/http"
 
-	"github.com/asgardeo/thunder/internal/system/crypto/pki"
+	"github.com/asgardeo/thunder/internal/system/kmprovider/defaultkm/pkiservice"
 	"github.com/asgardeo/thunder/internal/system/middleware"
 )
 
 // Initialize initializes the JWKS service and registers its routes.
-func Initialize(mux *http.ServeMux, pkiService pki.PKIServiceInterface) JWKSServiceInterface {
+func Initialize(mux *http.ServeMux, pkiService pkiservice.PKIServiceInterface) JWKSServiceInterface {
 	// Initialize the JWKS service
 	jwksService := newJWKSService(pkiService)
 	jwksHandler := newJWKSHandler(jwksService)
@@ -37,9 +37,10 @@ func Initialize(mux *http.ServeMux, pkiService pki.PKIServiceInterface) JWKSServ
 // registerRoutes registers the routes for the JWKSAPIService.
 func registerRoutes(mux *http.ServeMux, jwksHandler *jwksHandler) {
 	opts := middleware.CORSOptions{
-		AllowedMethods:   "GET, OPTIONS",
-		AllowedHeaders:   "Content-Type, Authorization",
+		AllowedMethods:   []string{"GET", "OPTIONS"},
+		AllowedHeaders:   middleware.DefaultAllowedHeaders,
 		AllowCredentials: true,
+		MaxAge:           600,
 	}
 	mux.HandleFunc(middleware.WithCORS("GET /oauth2/jwks",
 		jwksHandler.HandleJWKSRequest, opts))

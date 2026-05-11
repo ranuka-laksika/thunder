@@ -123,6 +123,11 @@ read -r -d '' CUSTOMER_USER_TYPE_PAYLOAD <<JSON || true
       "displayName": "Last Name",
       "required": false
     },
+    "name": {
+      "type": "string",
+      "displayName": "Full Name",
+      "required": false
+    },
     "mobileNumber": {
       "type": "string",
       "displayName": "Mobile Number",
@@ -135,7 +140,7 @@ read -r -d '' CUSTOMER_USER_TYPE_PAYLOAD <<JSON || true
 }
 JSON
 
-RESPONSE=$(api_call POST "/user-schemas" "${CUSTOMER_USER_TYPE_PAYLOAD}")
+RESPONSE=$(api_call POST "/user-types" "${CUSTOMER_USER_TYPE_PAYLOAD}")
 HTTP_CODE="${RESPONSE: -3}"
 
 if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]]; then
@@ -233,7 +238,7 @@ log_info "Creating React SDK Sample App application..."
 read -r -d '' REACT_SDK_APP_PAYLOAD <<JSON || true
 {
   "name": "React SDK Sample",
-  "description": "Sample React application using Thunder React SDK",
+  "description": "Sample React application using ${PRODUCT_NAME} React SDK",
   "ouId": "${CUSTOMER_OU_ID}",
   "clientId": "REACT_SDK_SAMPLE",
   "url": "https://localhost:3000",
