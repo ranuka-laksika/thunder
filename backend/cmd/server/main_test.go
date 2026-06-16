@@ -47,6 +47,13 @@ import (
 	"github.com/asgardeo/thunder/tests/mocks/jose/jwtmock"
 )
 
+type CreateSecurityMiddlewareTestSuite struct_1 {
+	suite.Suite
+	logger         *log.Logger
+	mockJWTService *jwtmock.JWTServiceInterfaceMock
+	mux            *http.ServeMux
+}
+
 // CreateSecurityMiddlewareTestSuite defines the test suite for createSecurityMiddleware function
 type CreateSecurityMiddlewareTestSuite struct {
 	suite.Suite
